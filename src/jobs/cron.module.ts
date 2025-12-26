@@ -16,8 +16,8 @@ import { NewTokenModule } from '../services/new-token/new-token.module';
     BithompModule,
     NewTokenModule,
     ClickhouseModule,
+    TokensModule,
   ],
-  imports: [TokensModule, IconsCacheModule],
   providers: [CronService],
   exports: [CronService],
 })

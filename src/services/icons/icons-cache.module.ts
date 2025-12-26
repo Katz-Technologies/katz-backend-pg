@@ -15,6 +15,11 @@ import { BithompModule } from '../../integrations/bithomp/bithomp.module';
     IconsService,
     HashiconDetectorService,
   ],
-  exports: [IconsCacheService, IconOptimizerService, HashiconDetectorService],
+  exports: [
+    IconsCacheService,
+    IconOptimizerService,
+    HashiconDetectorService,
+    IconsService,
+  ],
 })
 export class IconsCacheModule {}

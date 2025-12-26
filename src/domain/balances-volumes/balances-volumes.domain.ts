@@ -25,7 +25,7 @@ export class BalancesVolumesDomain {
         if (!balances[row.fromAsset]) {
           balances[row.fromAsset] = [balanceData];
         } else {
-          balances[row.fromAsset].push(balanceData);
+          balances[row.fromAsset]!.push(balanceData);
         }
 
         const volumeData: VolumeData = {
@@ -37,7 +37,7 @@ export class BalancesVolumesDomain {
         if (!volumes[row.fromAsset]) {
           volumes[row.fromAsset] = [volumeData];
         } else {
-          volumes[row.fromAsset].push(volumeData);
+          volumes[row.fromAsset]!.push(volumeData);
         }
       }
 
@@ -51,7 +51,7 @@ export class BalancesVolumesDomain {
         if (!balances[row.toAsset]) {
           balances[row.toAsset] = [balanceData];
         } else {
-          balances[row.toAsset].push(balanceData);
+          balances[row.toAsset]!.push(balanceData);
         }
 
         const volumeData: VolumeData = {
@@ -63,7 +63,7 @@ export class BalancesVolumesDomain {
         if (!volumes[row.toAsset]) {
           volumes[row.toAsset] = [volumeData];
         } else {
-          volumes[row.toAsset].push(volumeData);
+          volumes[row.toAsset]!.push(volumeData);
         }
       }
     }

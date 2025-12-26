@@ -26,6 +26,7 @@ export class ChainDomain {
 
     for (let i = steps.length - 1; i >= 0; i--) {
       const step = steps[i];
+      if (!step) continue;
 
       if (i === steps.length - 1) {
         step.proportionalFromAmount = currentQty;

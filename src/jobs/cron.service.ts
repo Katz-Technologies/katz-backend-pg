@@ -19,7 +19,10 @@ export class CronService implements OnModuleInit {
     private readonly tokensService: TokensService,
     private readonly iconsService: IconsService,
     private readonly iconsCacheService: IconsCacheService,
+    // Reserved for future use (see handleNewTokensCron method - currently commented)
+    // @ts-expect-error - Reserved for future use
     private readonly clickhouseService: ClickhouseService,
+    // @ts-expect-error - Reserved for future use
     private readonly newTokenService: NewTokenService,
   ) {}
 
