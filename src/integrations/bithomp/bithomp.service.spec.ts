@@ -6,7 +6,6 @@ import { IGetIssuedTokenAvatar } from './interface/get-issued-token.interface';
 // Мокируем глобальный fetch
 global.fetch = jest.fn();
 
-// eslint-disable-next-line max-lines-per-function
 describe('BithompService', () => {
   let service: BithompService;
   const mockFetch = global.fetch as jest.MockedFunction<typeof fetch>;
@@ -24,7 +23,6 @@ describe('BithompService', () => {
     jest.clearAllMocks();
   });
 
-  // eslint-disable-next-line max-lines-per-function
   describe('getAccountAvatar', () => {
     const mockAddress = 'rD9W7ULveavz8qBGM1R5jMgK2QKsEDPQVi';
     const mockImageBuffer = Buffer.from('fake-image-data');
@@ -198,7 +196,6 @@ describe('BithompService', () => {
     });
   });
 
-  // eslint-disable-next-line max-lines-per-function
   describe('getIssuedTokenAvatar', () => {
     const mockIssuer = 'rD9W7ULveavz8qBGM1R5jMgK2QKsEDPQVi';
     const mockCurrencyHex = '5553440000000000000000000000000000000000';

@@ -4,7 +4,6 @@ import { ProcessedMoneyFlowRow } from 'src/services/smart-money/type/processed-m
 import { ChainStep } from 'src/services/smart-money/type/chain-step.type';
 import { DateTime } from 'luxon';
 
-// eslint-disable-next-line max-lines-per-function
 describe('ChainDomain', () => {
   let service: ChainDomain;
 
@@ -77,7 +76,6 @@ describe('ChainDomain', () => {
     });
   });
 
-  // eslint-disable-next-line max-lines-per-function
   describe('buildChainTree', () => {
     it('should build chain tree with proportions for single step', () => {
       const closeTime = DateTime.now();

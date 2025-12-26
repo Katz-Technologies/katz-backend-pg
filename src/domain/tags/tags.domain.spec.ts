@@ -15,7 +15,6 @@ import { BalancesData } from 'src/services/smart-money/type/balances-data.type';
 import { VolumesData } from 'src/services/smart-money/type/volumes-data.type';
 import { SaleVolumeData } from 'src/services/smart-money/type/sale-volume-data.type';
 
-// eslint-disable-next-line max-lines-per-function
 describe('TagsDomain', () => {
   let service: TagsDomain;
 
@@ -127,7 +126,6 @@ describe('TagsDomain', () => {
     });
   });
 
-  // eslint-disable-next-line max-lines-per-function
   describe('manageTraderType', () => {
     it('should add PassiveTrader tag when no sales', () => {
       const summary = createEmptySummary();
@@ -506,7 +504,6 @@ describe('TagsDomain', () => {
     });
   });
 
-  // eslint-disable-next-line max-lines-per-function
   describe('manageGroupVolume', () => {
     it('should add SmallGroupVolume tag when tokensWithHighVolume < 5', () => {
       const summary: SmartMoneySummary = {

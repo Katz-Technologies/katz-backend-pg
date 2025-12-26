@@ -16,7 +16,6 @@ import { SmartMoneySummary } from './type/smart-money-summary.type';
 import { TopTokenData } from './type/top-token-data.type';
 import { TokenChartsResponse } from './interface/token-charts-response.interface';
 
-// eslint-disable-next-line max-lines-per-function
 describe('SmartMoneyService', () => {
   let service: SmartMoneyService;
   let clickhouseService: jest.Mocked<ClickhouseService>;

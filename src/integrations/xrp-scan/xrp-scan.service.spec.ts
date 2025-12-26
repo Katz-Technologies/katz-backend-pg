@@ -9,7 +9,6 @@ import { ITokenInfo } from './interface/token-info.interface';
 // Мокируем глобальный fetch
 global.fetch = jest.fn();
 
-// eslint-disable-next-line max-lines-per-function
 describe('XrpScanService', () => {
   let service: XrpScanService;
   const mockFetch = global.fetch as jest.MockedFunction<typeof fetch>;

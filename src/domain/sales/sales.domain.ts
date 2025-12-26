@@ -61,7 +61,9 @@ export class SalesDomain {
         if (purchase.qty > qty) {
           purchases.get(moneyFlow.fromAsset)!.pushBack({
             qty: purchase.qty - qty,
-            fromAmount: purchase.fromAmount + Math.abs((purchase.fromAmount * qty) / purchase.qty),
+            fromAmount:
+              purchase.fromAmount +
+              Math.abs((purchase.fromAmount * qty) / purchase.qty),
             chain: purchase.chain,
           });
         }
@@ -116,7 +118,9 @@ export class SalesDomain {
         if (purchase.qty > qty) {
           purchaseList.pushBack({
             qty: purchase.qty - qty,
-            fromAmount: purchase.fromAmount + Math.abs((purchase.fromAmount * qty) / purchase.qty),
+            fromAmount:
+              purchase.fromAmount +
+              Math.abs((purchase.fromAmount * qty) / purchase.qty),
             chain: purchase.chain,
           });
         }

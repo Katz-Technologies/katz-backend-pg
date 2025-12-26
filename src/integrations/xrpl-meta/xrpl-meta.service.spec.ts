@@ -11,7 +11,6 @@ import { ETokensSort } from './enum/tokens-sort.enum';
 // Мокируем глобальный fetch
 global.fetch = jest.fn();
 
-// eslint-disable-next-line max-lines-per-function
 describe('XrplMetaService', () => {
   let service: XrplMetaService;
   const mockFetch = global.fetch as jest.MockedFunction<typeof fetch>;

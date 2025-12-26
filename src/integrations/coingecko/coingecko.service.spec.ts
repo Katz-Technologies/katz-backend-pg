@@ -7,7 +7,6 @@ import { IPriceResponse } from './interface/price-response.interface';
 // Мокируем глобальный fetch
 global.fetch = jest.fn();
 
-// eslint-disable-next-line max-lines-per-function
 describe('CoingeckoService', () => {
   let service: CoingeckoService;
   const mockFetch = global.fetch as jest.MockedFunction<typeof fetch>;
@@ -25,7 +24,6 @@ describe('CoingeckoService', () => {
     jest.clearAllMocks();
   });
 
-  // eslint-disable-next-line max-lines-per-function
   describe('getPrice', () => {
     const mockPriceResponse: IPriceResponse = {
       ripple: {

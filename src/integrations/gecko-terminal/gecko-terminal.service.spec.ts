@@ -7,7 +7,6 @@ import { GeckoTerminalResponse } from './interface/gecko-terminal-response.inter
 // Мокируем глобальный fetch
 global.fetch = jest.fn();
 
-// eslint-disable-next-line max-lines-per-function
 describe('GeckoTerminalService', () => {
   let service: GeckoTerminalService;
   const mockFetch = global.fetch as jest.MockedFunction<typeof fetch>;
@@ -25,7 +24,6 @@ describe('GeckoTerminalService', () => {
     jest.clearAllMocks();
   });
 
-  // eslint-disable-next-line max-lines-per-function
   describe('getLast24hVolume', () => {
     const mockAsset: IssuedCurrency = {
       currency: 'USD',

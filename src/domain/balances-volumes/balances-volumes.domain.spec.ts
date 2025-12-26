@@ -3,7 +3,6 @@ import { BalancesVolumesDomain } from './balances-volumes.domain';
 import { ProcessedMoneyFlowRow } from 'src/services/smart-money/type/processed-money-flow-row.type';
 import { DateTime } from 'luxon';
 
-// eslint-disable-next-line max-lines-per-function
 describe('BalancesVolumesDomain', () => {
   let service: BalancesVolumesDomain;
 
@@ -19,7 +18,6 @@ describe('BalancesVolumesDomain', () => {
     expect(service).toBeDefined();
   });
 
-  // eslint-disable-next-line max-lines-per-function
   describe('getBalancesAndVolumes', () => {
     it('should return empty balances and volumes for empty array', () => {
       const result = service.getBalancesAndVolumes([], 'rTestAddress');

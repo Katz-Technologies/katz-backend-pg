@@ -49,6 +49,14 @@ export default tseslint.config(
     },
   },
   {
+    files: ['**/*.spec.ts', '**/*.test.ts'],
+    rules: {
+      'max-lines-per-function': ['warn', { max: 800, skipBlankLines: true }],
+      '@typescript-eslint/explicit-function-return-type': 'off',
+      '@typescript-eslint/explicit-module-boundary-types': 'off',
+    },
+  },
+  {
     ignores: ['dist/**', 'node_modules/**', 'coverage/**', '.eslintrc.js'],
   },
 );

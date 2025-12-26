@@ -9,7 +9,6 @@ import { DateTime } from 'luxon';
 
 describe('SalesDomain', () => {
   let service: SalesDomain;
-  let chainDomain: ChainDomain;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -17,7 +16,6 @@ describe('SalesDomain', () => {
     }).compile();
 
     service = module.get<SalesDomain>(SalesDomain);
-    chainDomain = module.get<ChainDomain>(ChainDomain);
   });
 
   it('should be defined', () => {
@@ -770,4 +768,3 @@ describe('SalesDomain', () => {
     });
   });
 });
-

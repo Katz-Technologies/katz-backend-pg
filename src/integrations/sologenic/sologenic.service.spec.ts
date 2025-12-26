@@ -11,7 +11,6 @@ import { IssuedCurrency, XRP } from 'xrpl';
 // Мокируем глобальный fetch
 global.fetch = jest.fn();
 
-// eslint-disable-next-line max-lines-per-function
 describe('SologenicService', () => {
   let service: SologenicService;
   const mockFetch = global.fetch as jest.MockedFunction<typeof fetch>;
@@ -29,7 +28,6 @@ describe('SologenicService', () => {
     jest.clearAllMocks();
   });
 
-  // eslint-disable-next-line max-lines-per-function
   describe('getOhlc', () => {
     const mockOhlcResponse: IOhlcResponse = [
       [
@@ -251,7 +249,6 @@ describe('SologenicService', () => {
     });
   });
 
-  // eslint-disable-next-line max-lines-per-function
   describe('getTrades', () => {
     const mockTradesResponse: ITradesResponse = [
       {

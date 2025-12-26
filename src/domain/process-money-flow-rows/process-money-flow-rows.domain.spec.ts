@@ -3,7 +3,6 @@ import { ProcessMoneyFlowRowsDomain } from './process-money-flow-rows.domain';
 import { MoneyFlowRow } from 'src/services/smart-money/interface/money-flow-row.interface';
 import { DateTime } from 'luxon';
 
-// eslint-disable-next-line max-lines-per-function
 describe('ProcessMoneyFlowRowsDomain', () => {
   let service: ProcessMoneyFlowRowsDomain;
 
@@ -21,7 +20,6 @@ describe('ProcessMoneyFlowRowsDomain', () => {
     expect(service).toBeDefined();
   });
 
-  // eslint-disable-next-line max-lines-per-function
   describe('processMoneyFlowRows', () => {
     it('should process empty array', () => {
       const result = service.processMoneyFlowRows([], 'XRP');
