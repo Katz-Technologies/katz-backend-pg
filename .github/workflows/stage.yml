@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - stage
+  pull_request:
+    branches:
+      - stage
   workflow_dispatch:
 
 jobs:
@@ -68,6 +71,13 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: staging
+    if: github.event_name != 'pull_request'
+    needs: [check-dev-status]
+
+  test-only:
+    name: stage - test and deploy
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
     needs: [check-dev-status]
 
     steps:
@@ -91,6 +101,9 @@ jobs:
 
       - name: Run tests
         run: npm test -- --watchAll=false
+
+      - name: Build application
+        run: npm run build
 
       - name: Build application
         run: npm run build
