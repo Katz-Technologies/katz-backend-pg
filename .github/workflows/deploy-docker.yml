@@ -239,16 +239,28 @@ jobs:
             fi
             echo ""
             
-            # Останавливаем и удаляем старое приложение
+            # Сначала собираем новый образ (старое приложение еще работает)
+            echo "Собираем новый образ приложения (старое приложение продолжает работать)..."
+            docker compose build katz-backend || {
+              echo "❌ ОШИБКА: Не удалось собрать образ"
+              exit 1
+            }
+            echo "✅ Образ успешно собран"
+            
+            # Теперь останавливаем и удаляем старое приложение (минимальный downtime)
             echo "Останавливаем и удаляем старое приложение..."
             docker compose stop katz-backend 2>/dev/null || true
             docker compose rm -f katz-backend 2>/dev/null || true
             # Дополнительная проверка - удаляем контейнер напрямую, если он все еще существует
             docker rm -f katz-backend 2>/dev/null || true
             
-            # Собираем и запускаем приложение
-            echo "Собираем и запускаем приложение..."
-            docker compose up -d --build --no-deps katz-backend
+            # Запускаем новый контейнер из уже собранного образа
+            echo "Запускаем новое приложение..."
+            docker compose up -d --no-deps katz-backend || {
+              echo "❌ ОШИБКА: Не удалось запустить контейнер"
+              exit 1
+            }
+            echo "✅ Новое приложение запущено"
             
             # Обновляем Redis только если его конфигурация изменилась
             # Docker Compose сам определит, нужно ли пересоздавать контейнер
@@ -272,19 +284,64 @@ jobs:
         run: |
           echo "Running smoke tests after deployment..."
           PROD_URL="${{ secrets.PRODUCTION_URL || 'http://localhost:3000' }}"
+          HEALTH_ENDPOINT="${PROD_URL}/api/health"
+          
+          echo "=========================================="
+          echo "Health Check Configuration:"
+          echo "PROD_URL: ${PROD_URL}"
+          echo "Health endpoint: ${HEALTH_ENDPOINT}"
+          echo "=========================================="
+          
+          # Check if URL is accessible (DNS resolution)
+          echo "Checking DNS resolution..."
+          DOMAIN=$(echo "$PROD_URL" | sed -E 's|https?://([^/]+).*|\1|')
+          if ! nslookup "$DOMAIN" > /dev/null 2>&1; then
+            echo "⚠️ Warning: Could not resolve DNS for $DOMAIN"
+            echo "This might be a temporary DNS issue, continuing anyway..."
+          else
+            echo "✅ DNS resolution successful for $DOMAIN"
+          fi
           
           # Check health endpoint
+          echo ""
           echo "Checking health endpoint..."
           MAX_ATTEMPTS=30
           ATTEMPT=0
           while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
             ATTEMPT=$((ATTEMPT + 1))
-            if curl -f -s "${PROD_URL}/api/health" > /dev/null 2>&1; then
-              echo "✅ Health check passed on attempt $ATTEMPT"
-              break
+            
+            # Try curl with verbose output on first attempt for debugging
+            if [ $ATTEMPT -eq 1 ]; then
+              echo "First attempt - testing connection..."
+              CURL_OUTPUT=$(curl -v --max-time 10 "${HEALTH_ENDPOINT}" 2>&1)
+              CURL_EXIT_CODE=$?
+              if [ $CURL_EXIT_CODE -eq 0 ]; then
+                echo "✅ Health check passed on attempt $ATTEMPT"
+                break
+              else
+                echo "❌ Connection failed (exit code: $CURL_EXIT_CODE). Error details:"
+                echo "$CURL_OUTPUT" | tail -30
+                echo ""
+              fi
+            else
+              # Subsequent attempts - silent but show attempt number
+              if curl -f -s --max-time 10 "${HEALTH_ENDPOINT}" > /dev/null 2>&1; then
+                echo "✅ Health check passed on attempt $ATTEMPT"
+                break
+              fi
             fi
+            
             if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
+              echo ""
               echo "❌ Health check failed after $MAX_ATTEMPTS attempts"
+              echo "Endpoint: ${HEALTH_ENDPOINT}"
+              echo ""
+              echo "Troubleshooting steps:"
+              echo "1. Verify PRODUCTION_URL secret is set correctly in GitHub Secrets"
+              echo "2. Check if the server is accessible: curl -v ${HEALTH_ENDPOINT}"
+              echo "3. Verify the application is running: docker logs katz-backend"
+              echo "4. Check server firewall and network settings"
+              echo ""
               echo "⚠️ Deployment may have failed. Consider rollback."
               exit 1
             fi
@@ -293,7 +350,7 @@ jobs:
           done
           
           # Verify health response structure
-          HEALTH_RESPONSE=$(curl -s "${PROD_URL}/api/health")
+          HEALTH_RESPONSE=$(curl -s --max-time 10 "${HEALTH_ENDPOINT}")
           if echo "$HEALTH_RESPONSE" | grep -q '"status"'; then
             echo "✅ Health endpoint returns valid JSON"
           else
