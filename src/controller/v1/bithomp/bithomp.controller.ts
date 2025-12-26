@@ -1,6 +1,6 @@
 import { Controller, Get, Param, Res, Header } from '@nestjs/common';
 import type { Response } from 'express';
-import { BithompService } from 'src/service/bithomp/bithomp.service';
+import { BithompService } from 'src/integrations/bithomp/bithomp.service';
 import { GetAvatarDto } from './dto/get-avatar.dto';
 import { GetIssuedTokenDto } from './dto/get-issued-token.dto';
 
@@ -10,7 +10,10 @@ export class BithompController {
 
   @Get('avatar/:address')
   @Header('Content-Type', 'image/png')
-  async getAccountAvatar(@Param() data: GetAvatarDto, @Res() res: Response) {
+  async getAccountAvatar(
+    @Param() data: GetAvatarDto,
+    @Res() res: Response,
+  ): Promise<void> {
     const imageBuffer = await this.bithompService.getAccountAvatar(data);
     res.send(imageBuffer);
   }
@@ -20,7 +23,7 @@ export class BithompController {
   async getIssuedTokenAvatar(
     @Param() data: GetIssuedTokenDto,
     @Res() res: Response,
-  ) {
+  ): Promise<void> {
     const imageBuffer = await this.bithompService.getIssuedTokenAvatar(data);
     res.send(imageBuffer);
   }

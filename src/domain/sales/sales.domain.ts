@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { ProcessedMoneyFlowRow } from 'src/service/smart_money/type/processed-money-flow-row.type';
-import { SaleData } from 'src/service/smart_money/type/sale-data.type';
-import { SaleVolumesData } from 'src/service/smart_money/type/sale-volumes-data.type';
-import { AssetId } from 'src/service/smart_money/type/asset-id.type';
-import { PurchaseData } from 'src/service/smart_money/type/purchase-data.type';
+import { ProcessedMoneyFlowRow } from 'src/services/smart-money/type/processed-money-flow-row.type';
+import { SaleData } from 'src/services/smart-money/type/sale-data.type';
+import { SaleVolumesData } from 'src/services/smart-money/type/sale-volumes-data.type';
+import { AssetId } from 'src/services/smart-money/type/asset-id.type';
+import { PurchaseData } from 'src/services/smart-money/type/purchase-data.type';
 import { Deque } from '../../common/deque/deque.class';
 import { ChainDomain } from '../chain/chain.domain';
 

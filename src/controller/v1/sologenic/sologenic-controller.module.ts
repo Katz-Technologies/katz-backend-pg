@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { SologenicController } from './sologenic.controller';
-import { SologenicModule } from 'src/service/sologenic/sologenic.module';
+import { SologenicModule } from 'src/integrations/sologenic/sologenic.module';
 
 @Module({
   controllers: [SologenicController],

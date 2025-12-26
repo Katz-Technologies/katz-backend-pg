@@ -9,9 +9,11 @@ export class InternalRedisAdapter implements RedisService, OnModuleDestroy {
 
   constructor(
     @Inject(REDIS_TOKENS.INTERNAL_CLIENT) private readonly redis: Redis,
-  ) {}
+  ) {
+    this.readyPromise = this.waitUntilReady();
+  }
 
-  onModuleDestroy() {
+  onModuleDestroy(): void {
     this.redis.disconnect();
   }
 
@@ -24,7 +26,7 @@ export class InternalRedisAdapter implements RedisService, OnModuleDestroy {
     });
   }
 
-  async ensureReady() {
+  async ensureReady(): Promise<void> {
     await this.readyPromise;
   }
 
@@ -32,7 +34,6 @@ export class InternalRedisAdapter implements RedisService, OnModuleDestroy {
     return this.redis.status === 'ready';
   }
 
-  // Делегируем все методы Redis клиенту
   async getJson<T>(key: string): Promise<T> {
     return JSON.parse((await this.redis.call('JSON.GET', key)) as string);
   }
@@ -77,37 +78,68 @@ export class InternalRedisAdapter implements RedisService, OnModuleDestroy {
     await this.redis.del(key);
   }
 
-  pipelineWithJson() {
+  pipelineWithJson(): {
+    delKey: (
+      key: string,
+    ) => ReturnType<InternalRedisAdapter['pipelineWithJsonProxy']>;
+    setAsJsonEx: <T>(
+      key: string,
+      data: T,
+      expire: number,
+    ) => ReturnType<InternalRedisAdapter['pipelineWithJsonProxy']>;
+    exec: () => Promise<[Error | null, unknown][] | null>;
+  } {
     const pipeline = this.redis.pipeline();
 
     return {
-      delKey: (key: string) => {
+      delKey: (
+        key: string,
+      ): ReturnType<InternalRedisAdapter['pipelineWithJsonProxy']> => {
         pipeline.del(key);
         return this.pipelineWithJsonProxy(pipeline);
       },
-      setAsJsonEx: <T>(key: string, data: T, expire: number) => {
+      setAsJsonEx: <T>(
+        key: string,
+        data: T,
+        expire: number,
+      ): ReturnType<InternalRedisAdapter['pipelineWithJsonProxy']> => {
         pipeline.set(key, JSON.stringify(data), 'EX', expire);
         return this.pipelineWithJsonProxy(pipeline);
       },
-      exec: () => pipeline.exec(),
+      exec: (): Promise<[Error | null, unknown][] | null> => pipeline.exec(),
     };
   }
 
-  private pipelineWithJsonProxy(pipeline: ReturnType<Redis['pipeline']>) {
+  private pipelineWithJsonProxy(pipeline: ReturnType<Redis['pipeline']>): {
+    delKey: (
+      key: string,
+    ) => ReturnType<InternalRedisAdapter['pipelineWithJsonProxy']>;
+    setAsJsonEx: <T>(
+      key: string,
+      data: T,
+      expire: number,
+    ) => ReturnType<InternalRedisAdapter['pipelineWithJsonProxy']>;
+    exec: () => Promise<[Error | null, unknown][] | null>;
+  } {
     return {
-      delKey: (key: string) => {
+      delKey: (
+        key: string,
+      ): ReturnType<InternalRedisAdapter['pipelineWithJsonProxy']> => {
         pipeline.del(key);
         return this.pipelineWithJsonProxy(pipeline);
       },
-      setAsJsonEx: <T>(key: string, data: T, expire: number) => {
+      setAsJsonEx: <T>(
+        key: string,
+        data: T,
+        expire: number,
+      ): ReturnType<InternalRedisAdapter['pipelineWithJsonProxy']> => {
         pipeline.set(key, JSON.stringify(data), 'EX', expire);
         return this.pipelineWithJsonProxy(pipeline);
       },
-      exec: () => pipeline.exec(),
+      exec: (): Promise<[Error | null, unknown][] | null> => pipeline.exec(),
     };
   }
 
-  // Делегируем методы RedisService, которые требуются интерфейсом
   async call(...args: [string, ...unknown[]]): Promise<unknown> {
     return this.redis.call(...(args as [string, ...string[]]));
   }
@@ -121,7 +153,8 @@ export class InternalRedisAdapter implements RedisService, OnModuleDestroy {
     value: string,
     ...args: unknown[]
   ): Promise<'OK' | null> {
-    return this.redis.set(key, value, ...(args as any));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return this.redis.set(key, value, ...(args as any[]));
   }
 
   async del(...keys: string[]): Promise<number> {
@@ -135,6 +168,19 @@ export class InternalRedisAdapter implements RedisService, OnModuleDestroy {
   multi(
     options?: { pipeline: false } | { pipeline: true } | unknown[][],
   ): Promise<'OK'> | ChainableCommander {
+    if (options === undefined) {
+      return this.redis.multi();
+    }
+    if (Array.isArray(options)) {
+      return this.redis.multi(options);
+    }
+    if (options.pipeline === false) {
+      return this.redis.multi({ pipeline: false });
+    }
+    if (options.pipeline === true) {
+      return this.redis.multi({ pipeline: true });
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return this.redis.multi(options as any);
   }
 

@@ -8,10 +8,10 @@ import { Type } from 'class-transformer';
 
 export class TokenDto {
   @IsString()
-  currency: string;
+  currency!: string;
 
   @IsString()
-  issuer: string;
+  issuer!: string;
 }
 
 export class GetTopTokenDto {
@@ -21,5 +21,5 @@ export class GetTopTokenDto {
   })
   @ValidateNested({ each: true })
   @Type(() => TokenDto)
-  tokens: TokenDto[];
+  tokens!: TokenDto[];
 }

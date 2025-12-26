@@ -2,8 +2,8 @@ import { IsString } from 'class-validator';
 
 export class GetTokenDto {
   @IsString()
-  asset: string;
+  asset!: string;
 
   @IsString()
-  issuer: string;
+  issuer!: string;
 }

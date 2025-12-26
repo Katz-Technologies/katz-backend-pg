@@ -2,8 +2,8 @@ import { IsString } from 'class-validator';
 
 export class GetIssuedTokenDto {
   @IsString()
-  issuer: string;
+  issuer!: string;
 
   @IsString()
-  currencyHex: string;
+  currencyHex!: string;
 }

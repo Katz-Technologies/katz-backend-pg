@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { ProcessedMoneyFlowRow } from 'src/service/smart_money/type/processed-money-flow-row.type';
-import { BalancesData } from 'src/service/smart_money/type/balances-data.type';
-import { VolumesData } from 'src/service/smart_money/type/volumes-data.type';
-import { BalanceData } from 'src/service/smart_money/type/balance-data.type';
-import { VolumeData } from 'src/service/smart_money/type/volume-data.type';
+import { ProcessedMoneyFlowRow } from 'src/services/smart-money/type/processed-money-flow-row.type';
+import { BalancesData } from 'src/services/smart-money/type/balances-data.type';
+import { VolumesData } from 'src/services/smart-money/type/volumes-data.type';
+import { BalanceData } from 'src/services/smart-money/type/balance-data.type';
+import { VolumeData } from 'src/services/smart-money/type/volume-data.type';
 
 @Injectable()
 export class BalancesVolumesDomain {

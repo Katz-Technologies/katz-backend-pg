@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { DateTime } from 'luxon';
-import { MoneyFlowRow } from 'src/service/smart_money/interface/money-flow-row.interface';
-import { ProcessedMoneyFlowRow } from 'src/service/smart_money/type/processed-money-flow-row.type';
-import { Kind } from 'src/service/smart_money/type/kind.type';
+import { MoneyFlowRow } from 'src/services/smart-money/interface/money-flow-row.interface';
+import { ProcessedMoneyFlowRow } from 'src/services/smart-money/type/processed-money-flow-row.type';
+import { Kind } from 'src/services/smart-money/type/kind.type';
 
 @Injectable()
 export class ProcessMoneyFlowRowsDomain {

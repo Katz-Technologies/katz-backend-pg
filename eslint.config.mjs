@@ -31,11 +31,14 @@ export default tseslint.config(
     },
     rules: {
       '@typescript-eslint/interface-name-prefix': 'off',
-      '@typescript-eslint/explicit-function-return-type': 'off',
-      '@typescript-eslint/explicit-module-boundary-types': 'off',
-      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/explicit-function-return-type': 'warn',
+      '@typescript-eslint/explicit-module-boundary-types': 'warn',
+      '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/no-inferrable-types': 'off',
+      'complexity': ['warn', 15],
       'prettier/prettier': 'error',
+      'max-lines-per-function': ['warn', { max: 100, skipBlankLines: true }],
+      'max-depth': ['warn', 4],
     },
   },
   {

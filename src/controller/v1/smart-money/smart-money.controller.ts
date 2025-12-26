@@ -7,9 +7,16 @@ import {
   Param,
 } from '@nestjs/common';
 import { AnalyzeAccountDto } from './dto/req-analyze-account.dto';
-import { SmartMoneyService } from '../../../service/smart_money/smart-money.service';
+import { SmartMoneyService } from '../../../services/smart-money/smart-money.service';
 import { ReqTokenHistoryDto } from './dto/req-token-history.dto';
-import { NewTokenService } from 'src/service/new-token/new-token.service';
+import { NewTokenService } from 'src/services/new-token/new-token.service';
+import { SaleData } from 'src/services/smart-money/type/sale-data.type';
+import { MoneyFlowRow } from 'src/services/smart-money/interface/money-flow-row.interface';
+import { TokenSummary } from 'src/services/smart-money/type/token-summary.type';
+import { NewTokenList } from 'src/services/new-token/interface/new-token.interface';
+import { TopTokenData } from 'src/services/smart-money/type/top-token-data.type';
+import { TokenChartsResponse } from 'src/services/smart-money/interface/token-charts-response.interface';
+import { SmartMoneySummary } from 'src/services/smart-money/type/smart-money-summary.type';
 
 @Controller('v1/smart-money')
 export class SmartMoneyController {
@@ -19,7 +26,7 @@ export class SmartMoneyController {
   ) {}
 
   @Get('sales')
-  async getSales(@Query() data: AnalyzeAccountDto) {
+  async getSales(@Query() data: AnalyzeAccountDto): Promise<SaleData[]> {
     try {
       return await this.smartMoneyService.getSales(
         data.address,
@@ -38,7 +45,9 @@ export class SmartMoneyController {
   }
 
   @Get('token-history')
-  async getTokenHistory(@Query() data: ReqTokenHistoryDto) {
+  async getTokenHistory(
+    @Query() data: ReqTokenHistoryDto,
+  ): Promise<MoneyFlowRow[]> {
     try {
       return await this.smartMoneyService.getTokenHistoryFromRedis(
         data.asset,
@@ -57,7 +66,9 @@ export class SmartMoneyController {
   }
 
   @Get('token-summary/:asset')
-  async getTokenSummary(@Param('asset') asset: string) {
+  async getTokenSummary(
+    @Param('asset') asset: string,
+  ): Promise<TokenSummary | null> {
     try {
       return await this.smartMoneyService.getTokenSummary(asset);
     } catch (error) {
@@ -72,7 +83,7 @@ export class SmartMoneyController {
   }
 
   @Get('new-tokens')
-  async getNewTokens() {
+  async getNewTokens(): Promise<NewTokenList | null> {
     try {
       return await this.newTokenService.getNewTokens();
     } catch (error) {
@@ -87,7 +98,7 @@ export class SmartMoneyController {
   }
 
   @Get('tokens')
-  async getAllTokens() {
+  async getAllTokens(): Promise<string[]> {
     try {
       return await this.smartMoneyService.getAllTokens();
     } catch (error) {
@@ -102,7 +113,7 @@ export class SmartMoneyController {
   }
 
   @Get('top-holders-tokens')
-  async getTopVolumeTokens() {
+  async getTopVolumeTokens(): Promise<TopTokenData[]> {
     try {
       return await this.smartMoneyService.getTopVolumeTokens();
     } catch (error) {
@@ -117,7 +128,9 @@ export class SmartMoneyController {
   }
 
   @Get('money-flows')
-  async getMoneyFlows(@Query() data: AnalyzeAccountDto) {
+  async getMoneyFlows(
+    @Query() data: AnalyzeAccountDto,
+  ): Promise<MoneyFlowRow[]> {
     try {
       return await this.smartMoneyService.getMoneyFlowsFromRedis(
         data.address,
@@ -136,7 +149,7 @@ export class SmartMoneyController {
   }
 
   @Get('chart/:token')
-  async getChart(@Param('token') token: string) {
+  async getChart(@Param('token') token: string): Promise<TokenChartsResponse> {
     try {
       return await this.smartMoneyService.getChartsByToken(token);
     } catch (error) {
@@ -151,7 +164,7 @@ export class SmartMoneyController {
   }
 
   @Get('top-pnl-accounts')
-  async getTopPNLAccounts() {
+  async getTopPNLAccounts(): Promise<SmartMoneySummary[]> {
     try {
       return await this.smartMoneyService.getTopPNLAccounts();
     } catch (error) {
