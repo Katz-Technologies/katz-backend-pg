@@ -1,5 +1,5 @@
 export type { RedisService } from './redis.service';
-export { ExternalRedisModule } from './external-redis.module';
+// export { ExternalRedisModule } from './external-redis.module';
 export { InternalRedisModule } from './internal-redis.module';
 export { REDIS_TOKENS } from './redis.tokens';
 export { InjectExternalRedis, InjectInternalRedis } from './redis.decorators';

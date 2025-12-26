@@ -54,9 +54,9 @@ services:
     command: >
       sh -c "
       if [ -n \"$$INTERNAL_REDIS_PASSWORD\" ]; then
-        redis-server --appendonly yes --requirepass \"$$INTERNAL_REDIS_PASSWORD\"
+        redis-server --appendonly yes --requirepass \"$$INTERNAL_REDIS_PASSWORD\" --protected-mode yes
       else
-        redis-server --appendonly yes
+        redis-server --appendonly yes --protected-mode no
       fi
       "
     environment:

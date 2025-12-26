@@ -5,7 +5,7 @@ import { TokensModule } from '../services/tokens/tokens.module';
 import { IconsCacheModule } from '../services/icons/icons-cache.module';
 import { XrplMetaModule } from '../integrations/xrpl-meta/xrpl-meta.module';
 import { BithompModule } from '../integrations/bithomp/bithomp.module';
-import { ClickhouseModule } from '../common/clickhouse/clickhouse.module';
+// import { ClickhouseModule } from '../common/clickhouse/clickhouse.module';
 import { NewTokenModule } from '../services/new-token/new-token.module';
 
 @Module({
@@ -15,7 +15,7 @@ import { NewTokenModule } from '../services/new-token/new-token.module';
     XrplMetaModule,
     BithompModule,
     NewTokenModule,
-    ClickhouseModule,
+    // ClickhouseModule,
     TokensModule,
   ],
   providers: [CronService],
