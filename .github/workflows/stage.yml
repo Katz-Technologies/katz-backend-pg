@@ -100,7 +100,123 @@ jobs:
 
       - name: Deploy to staging
         if: github.event_name != 'pull_request'
-        run: |
-          echo "Deploying to staging environment..."
-          # Add your deployment logic here
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          script: |
+            set -e
+            
+            DEPLOY_PATH="${{ secrets.STAGING_DEPLOY_PATH || secrets.DEPLOY_PATH || '/home/ubuntu/katz-backend-stage' }}"
+            GIT_REPO="${{ secrets.GIT_REPO || github.repository }}"
+            GIT_BRANCH="stage"
+            
+            echo "=========================================="
+            echo "Начало деплоя на STAGING"
+            echo "=========================================="
+            echo "DEPLOY_PATH: $DEPLOY_PATH"
+            echo "GIT_REPO: $GIT_REPO"
+            echo "GIT_BRANCH: $GIT_BRANCH"
+            echo "Текущая директория: $(pwd)"
+            echo "Пользователь: $(whoami)"
+            echo ""
+            
+            # Определяем URL репозитория
+            # Используем GIT_TOKEN если указан, иначе SSH
+            if [ -n "${{ secrets.GIT_TOKEN }}" ]; then
+              GIT_URL="https://${{ secrets.GIT_TOKEN }}@github.com/$GIT_REPO.git"
+              echo "Используем GIT_TOKEN для клонирования"
+            else
+              # Используем SSH URL (требует настройки SSH ключа на сервере)
+              GIT_URL="git@github.com:$GIT_REPO.git"
+              echo "Используем SSH для клонирования (требует SSH ключ на сервере)"
+            fi
+            echo "GIT_URL: ${GIT_URL%%@*}" # Показываем без токена для безопасности
+            echo ""
+            
+            # Создаем директорию, если не существует
+            echo "Создаем директорию $DEPLOY_PATH..."
+            mkdir -p "$DEPLOY_PATH" || {
+              echo "❌ ОШИБКА: Не удалось создать директорию $DEPLOY_PATH"
+              echo "Проверьте права доступа пользователя $(whoami)"
+              exit 1
+            }
+            echo "✅ Директория создана или уже существует"
+            
+            echo "Переходим в директорию $DEPLOY_PATH..."
+            cd "$DEPLOY_PATH" || {
+              echo "❌ ОШИБКА: Не удалось перейти в директорию $DEPLOY_PATH"
+              exit 1
+            }
+            echo "✅ Текущая директория: $(pwd)"
+            echo ""
+            
+            # Клонируем или обновляем репозиторий
+            if [ -d ".git" ]; then
+              echo "Обновляем репозиторий..."
+              # Проверяем текущий remote URL и обновляем если нужно
+              CURRENT_URL=$(git remote get-url origin 2>/dev/null || echo "")
+              if [ "$CURRENT_URL" != "$GIT_URL" ]; then
+                echo "Обновляем remote URL..."
+                git remote set-url origin "$GIT_URL"
+              fi
+              git fetch origin || {
+                echo "❌ ОШИБКА: Не удалось выполнить git fetch"
+                echo "Проверьте SSH ключ или GIT_TOKEN"
+                exit 1
+              }
+              git reset --hard origin/$GIT_BRANCH || {
+                echo "❌ ОШИБКА: Не удалось выполнить git reset"
+                exit 1
+              }
+              git clean -fd
+              echo "✅ Репозиторий обновлен"
+            else
+              echo "Клонируем репозиторий..."
+              git clone -b $GIT_BRANCH $GIT_URL . || {
+                echo "❌ ОШИБКА: Не удалось клонировать репозиторий"
+                echo "Возможные причины:"
+                echo "  1. Нет SSH ключа на сервере (если используется SSH)"
+                echo "  2. Неверный GIT_TOKEN (если используется токен)"
+                echo "  3. Нет доступа к репозиторию"
+                echo "  4. Неверный GIT_REPO: $GIT_REPO"
+                exit 1
+              }
+              echo "✅ Репозиторий клонирован"
+            fi
+            echo ""
+            
+            # Проверяем наличие .env файла
+            echo "Проверяем наличие .env файла..."
+            if [ ! -f ".env" ]; then
+              echo "⚠️ ВНИМАНИЕ: Файл .env не найден!"
+              echo "Создайте файл .env вручную на сервере в директории $DEPLOY_PATH"
+              echo "Или временно закомментируйте эту проверку для первого деплоя"
+              exit 1
+            fi
+            echo "✅ Файл .env найден"
+            echo ""
+            
+            # Останавливаем старые контейнеры
+            echo "Останавливаем старые контейнеры..."
+            docker compose down || true
+            
+            # Собираем и запускаем новые контейнеры
+            echo "Собираем и запускаем контейнеры..."
+            docker compose up -d --build
+            
+            # Показываем статус
+            echo "Статус контейнеров:"
+            docker compose ps
+            
+            # Очищаем неиспользуемые образы (опционально)
+            echo "Очищаем неиспользуемые образы..."
+            docker image prune -f || true
+            
+            echo ""
+            echo "=========================================="
+            echo "✅ Деплой на STAGING завершен"
+            echo "=========================================="
 
