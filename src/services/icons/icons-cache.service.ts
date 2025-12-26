@@ -1,6 +1,6 @@
 import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { InternalRedisAdapter } from '../../common/redis/internal-redis.adapter';
-import { ExternalRedisAdapter } from '../../common/redis/external-redis.adapter';
+// import { ExternalRedisAdapter } from '../../common/redis/external-redis.adapter';
 import { IToken } from '../../integrations/xrpl-meta/interface/get-tokens-response.interface';
 import { IconOptimizerService } from './icon-optimizer.service';
 import { IconsService } from './icons.service';
@@ -20,7 +20,7 @@ export class IconsCacheService {
 
   constructor(
     private readonly internalRedisService: InternalRedisAdapter,
-    private readonly externalRedisService: ExternalRedisAdapter,
+    // private readonly externalRedisService: ExternalRedisAdapter,
     private readonly iconOptimizer: IconOptimizerService,
     @Inject(forwardRef(() => IconsService))
     private readonly iconsService: IconsService,
@@ -38,27 +38,27 @@ export class IconsCacheService {
       const pipeline = this.internalRedisService.pipelineWithJson();
       const updatedAt = new Date().toISOString();
 
-      tokens = await Promise.all(
-        tokens.map(async (v) => {
-          const summary = await this.externalRedisService.getAsJson(
-            `token:${v.currency}.${v.issuer}`,
-          );
-          if (summary !== null) {
-            const assign = Object.assign(v, summary);
-            if (assign.richList && Number(assign.metrics.supply) > 0) {
-              assign.richList = assign.richList.map((v) => {
-                return {
-                  ...v,
-                  percent: v.balance / Number(assign.metrics.supply),
-                };
-              });
-            }
-            return assign;
-          } else {
-            return v;
-          }
-        }),
-      );
+      // tokens = await Promise.all(
+      //   tokens.map(async (v) => {
+      //     const summary = await this.externalRedisService.getAsJson(
+      //       `token:${v.currency}.${v.issuer}`,
+      //     );
+      //     if (summary !== null) {
+      //       const assign = Object.assign(v, summary);
+      //       if (assign.richList && Number(assign.metrics.supply) > 0) {
+      //         assign.richList = assign.richList.map((v) => {
+      //           return {
+      //             ...v,
+      //             percent: v.balance / Number(assign.metrics.supply),
+      //           };
+      //         });
+      //       }
+      //       return assign;
+      //     } else {
+      //       return v;
+      //     }
+      //   }),
+      // );
 
       pipeline.setAsJsonEx(
         'trending:tokens:list',

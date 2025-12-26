@@ -5,8 +5,8 @@ import { IconsService } from '../services/icons/icons.service';
 import { IconsCacheService } from '../services/icons/icons-cache.service';
 import { ETopType } from './enum/top-types.enum';
 import { ALL_TOP_TYPES } from './utils/top-mapping';
-import { ClickhouseService } from '../common/clickhouse/clickhouse.service';
-import { NewTokenService } from '../services/new-token/new-token.service';
+// import { ClickhouseService } from '../common/clickhouse/clickhouse.service';
+// import { NewTokenService } from '../services/new-token/new-token.service';
 
 @Injectable()
 export class CronService implements OnModuleInit {
@@ -20,10 +20,8 @@ export class CronService implements OnModuleInit {
     private readonly iconsService: IconsService,
     private readonly iconsCacheService: IconsCacheService,
     // Reserved for future use (see handleNewTokensCron method - currently commented)
-    // @ts-expect-error - Reserved for future use
-    private readonly clickhouseService: ClickhouseService,
-    // @ts-expect-error - Reserved for future use
-    private readonly newTokenService: NewTokenService,
+    // private readonly clickhouseService: ClickhouseService,
+    // private readonly newTokenService: NewTokenService,
   ) {}
 
   async onModuleInit(): Promise<void> {
