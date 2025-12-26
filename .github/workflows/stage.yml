@@ -14,7 +14,6 @@ jobs:
   check-dev-status:
     name: Check dev branch status
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/stage'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
