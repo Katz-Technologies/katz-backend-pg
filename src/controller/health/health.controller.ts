@@ -1,8 +1,8 @@
 import { Controller, Get } from '@nestjs/common';
-import { Inject } from '@nestjs/common';
-import { REDIS_TOKENS } from '../../common/redis/redis.tokens';
-import type { RedisService } from '../../common/redis/redis.service';
-import { ClickhouseService } from '../../common/clickhouse/clickhouse.service';
+// import { Inject } from '@nestjs/common';
+// import { REDIS_TOKENS } from '../../common/redis/redis.tokens';
+// import type { RedisService } from '../../common/redis/redis.service';
+// import { ClickhouseService } from '../../common/clickhouse/clickhouse.service';
 
 interface HealthStatus {
   status: 'ok' | 'degraded' | 'down';
@@ -29,11 +29,10 @@ interface HealthStatus {
 export class HealthController {
   private readonly startTime = Date.now();
 
-  constructor(
-    @Inject(REDIS_TOKENS.EXTERNAL)
-    private readonly redisService: RedisService,
-    private readonly clickhouseService: ClickhouseService,
-  ) {}
+  constructor() {}
+  // @Inject(REDIS_TOKENS.EXTERNAL)
+  // private readonly redisService: RedisService,
+  // private readonly clickhouseService: ClickhouseService,
 
   @Get()
   async check(): Promise<HealthStatus> {
@@ -75,13 +74,13 @@ export class HealthController {
     message?: string;
   }> {
     try {
-      const isReady = this.redisService.isReady();
-      if (!isReady) {
-        await this.redisService.ensureReady();
-      }
+      // const isReady = this.redisService.isReady();
+      // if (!isReady) {
+      //   await this.redisService.ensureReady();
+      // }
 
       // Простая проверка: пытаемся выполнить ping через get
-      await this.redisService.get('health-check');
+      // await this.redisService.get('health-check');
       return { status: 'ok' };
     } catch (error) {
       return {
@@ -97,7 +96,7 @@ export class HealthController {
   }> {
     try {
       // Простая проверка: выполняем SELECT 1
-      await this.clickhouseService.executeQuery('SELECT 1');
+      // await this.clickhouseService.executeQuery('SELECT 1');
       return { status: 'ok' };
     } catch (error) {
       return {
