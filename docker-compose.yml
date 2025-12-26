@@ -14,6 +14,7 @@ services:
       - EXTERNAL_REDIS_PORT=${EXTERNAL_REDIS_PORT:-6379}
       - INTERNAL_REDIS_HOST=${INTERNAL_REDIS_HOST:-redis}
       - INTERNAL_REDIS_PORT=${INTERNAL_REDIS_PORT:-6379}
+      - INTERNAL_REDIS_PASSWORD=${INTERNAL_REDIS_PASSWORD}
       - CLICKHOUSE_HOST=${CLICKHOUSE_HOST}
       - CLICKHOUSE_USERNAME=${CLICKHOUSE_USERNAME}
       - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD}
@@ -50,9 +51,25 @@ services:
       - redis-data:/data
     networks:
       - katz-network
-    command: redis-server --appendonly yes
+    command: >
+      sh -c "
+      if [ -n \"$$INTERNAL_REDIS_PASSWORD\" ]; then
+        redis-server --appendonly yes --requirepass \"$$INTERNAL_REDIS_PASSWORD\"
+      else
+        redis-server --appendonly yes
+      fi
+      "
+    environment:
+      - INTERNAL_REDIS_PASSWORD=${INTERNAL_REDIS_PASSWORD}
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: >
+        sh -c "
+        if [ -n \"$$INTERNAL_REDIS_PASSWORD\" ]; then
+          redis-cli -a \"$$INTERNAL_REDIS_PASSWORD\" ping
+        else
+          redis-cli ping
+        fi
+        "
       interval: 10s
       timeout: 3s
       retries: 3

@@ -8,6 +8,7 @@ export const internalRedisProvider: Provider = {
     const client = new Redis({
       host: process.env.INTERNAL_REDIS_HOST || 'localhost',
       port: Number(process.env.INTERNAL_REDIS_PORT) || 6379,
+      password: process.env.INTERNAL_REDIS_PASSWORD,
       retryStrategy: (times): number => {
         const delay = Math.min(times * 50, 2000);
         return delay;
