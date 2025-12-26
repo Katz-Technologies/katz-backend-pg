@@ -7,7 +7,7 @@ import { XrplMetaControllerModule } from './v1/xrpl-meta/xrpl-meta-controller.mo
 import { CoingeckoControllerModule } from './v1/coingecko/coingecko-controller.module';
 import { BithompControllerModule } from './v1/bithomp/bithomp-controller.module';
 import { TopTokensControllerModule } from './v1/top-tokens/top-tokens-controller.module';
-// import { HealthModule } from './health/health.module';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
