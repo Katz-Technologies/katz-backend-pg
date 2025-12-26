@@ -207,10 +207,12 @@ jobs:
             fi
             echo ""
             
-            # Останавливаем только приложение (не трогаем Redis)
-            echo "Останавливаем старое приложение..."
-            docker compose stop katz-backend || true
-            docker compose rm -f katz-backend || true
+            # Останавливаем и удаляем старое приложение (не трогаем Redis)
+            echo "Останавливаем и удаляем старое приложение..."
+            docker compose stop katz-backend 2>/dev/null || true
+            docker compose rm -f katz-backend 2>/dev/null || true
+            # Дополнительная проверка - удаляем контейнер напрямую, если он все еще существует
+            docker rm -f katz-backend 2>/dev/null || true
             
             # Собираем и запускаем только приложение (без зависимостей)
             echo "Собираем и запускаем приложение..."
