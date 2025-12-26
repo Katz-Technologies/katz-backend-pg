@@ -1,0 +1,98 @@
+name: Deploy to Production (PM2 - DISABLED)
+
+# Этот workflow отключен. Используйте deploy-docker.yml для Docker деплоя.
+# Чтобы включить этот workflow, раскомментируйте on: ниже
+
+# on:
+#   push:
+#     branches:
+#       - main
+#   workflow_dispatch:
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to Server
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+
+      - name: Create deployment package
+        run: |
+          mkdir -p deploy
+          cp -r dist deploy/
+          cp package.json deploy/
+          cp package-lock.json deploy/
+          tar -czf deploy.tar.gz deploy/
+
+      - name: Deploy to server via SSH
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          source: "deploy.tar.gz"
+          target: ${{ secrets.DEPLOY_PATH || '/home/ubuntu/katz-backend' }}
+
+      - name: Extract and restart application
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          script: |
+            cd ${{ secrets.DEPLOY_PATH || '/home/ubuntu/katz-backend' }}
+            
+            # Backup current deployment
+            if [ -d "current" ]; then
+              mv current "backup-$(date +%Y%m%d-%H%M%S)"
+            fi
+            
+            # Extract new deployment
+            tar -xzf deploy.tar.gz
+            mv deploy current
+            
+            # Install production dependencies
+            cd current
+            npm ci --production
+            
+            # Restart application (adjust based on your process manager)
+            # For PM2:
+            pm2 restart katz-backend || pm2 start ecosystem.config.js
+            
+            # For systemd (uncomment if using systemd):
+            # sudo systemctl restart katz-backend
+            
+            # For Docker (uncomment if using Docker):
+            # docker compose restart || docker compose up -d
+            
+            # Cleanup
+            cd ..
+            rm -f deploy.tar.gz
+            
+            # Keep only last 5 backups
+            ls -t backup-* 2>/dev/null | tail -n +6 | xargs rm -rf 2>/dev/null || true
+
+      - name: Cleanup
+        if: always()
+        run: rm -rf deploy deploy.tar.gz
+

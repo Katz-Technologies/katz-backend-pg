@@ -1,0 +1,71 @@
+services:
+  katz-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: katz-backend
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=${NODE_ENV:-production}
+      - PORT=${PORT:-3000}
+      - EXTERNAL_REDIS_HOST=${EXTERNAL_REDIS_HOST:-51.250.55.144}
+      - EXTERNAL_REDIS_PORT=${EXTERNAL_REDIS_PORT:-6379}
+      - INTERNAL_REDIS_HOST=${INTERNAL_REDIS_HOST:-redis}
+      - INTERNAL_REDIS_PORT=${INTERNAL_REDIS_PORT:-6379}
+      - CLICKHOUSE_HOST=${CLICKHOUSE_HOST}
+      - CLICKHOUSE_USERNAME=${CLICKHOUSE_USERNAME}
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD}
+      - CLICKHOUSE_DATABASE=${CLICKHOUSE_DATABASE}
+      - CLICKHOUSE_REQUEST_TIMEOUT=${CLICKHOUSE_REQUEST_TIMEOUT:-30000}
+      - CLICKHOUSE_MAX_CONNECTIONS=${CLICKHOUSE_MAX_CONNECTIONS:-10}
+      - CLICKHOUSE_KEEP_ALIVE=${CLICKHOUSE_KEEP_ALIVE:-true}
+      - CLICKHOUSE_COMPRESSION=${CLICKHOUSE_COMPRESSION:-true}
+      - THROTTLER_LIMIT=${THROTTLER_LIMIT:-60}
+      - THROTTLER_TTL=${THROTTLER_TTL:-60000}
+    depends_on:
+      - redis
+    networks:
+      - katz-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+
+  redis:
+    image: redis:7-alpine
+    container_name: katz-redis
+    restart: unless-stopped
+    ports:
+      - "${INTERNAL_REDIS_EXTERNAL_PORT:-6380}:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - katz-network
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+
+networks:
+  katz-network:
+    driver: bridge
+
+volumes:
+  redis-data:
+

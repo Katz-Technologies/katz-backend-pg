@@ -1,0 +1,81 @@
+name: Deploy to Production (Docker)
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to Server via Docker
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+
+    steps:
+      - name: Deploy to server via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          script: |
+            set -e
+            
+            DEPLOY_PATH="${{ secrets.DEPLOY_PATH || '/home/ubuntu/katz-backend' }}"
+            GIT_REPO="${{ secrets.GIT_REPO || github.repository }}"
+            GIT_BRANCH="main"
+            
+            # Определяем URL репозитория
+            # Используем GIT_TOKEN если указан, иначе SSH
+            if [ -n "${{ secrets.GIT_TOKEN }}" ]; then
+              GIT_URL="https://${{ secrets.GIT_TOKEN }}@github.com/$GIT_REPO.git"
+            else
+              # Используем SSH URL (требует настройки SSH ключа на сервере)
+              GIT_URL="git@github.com:$GIT_REPO.git"
+            fi
+            
+            # Создаем директорию, если не существует
+            mkdir -p "$DEPLOY_PATH"
+            cd "$DEPLOY_PATH"
+            
+            # Клонируем или обновляем репозиторий
+            if [ -d ".git" ]; then
+              echo "Обновляем репозиторий..."
+              # Проверяем текущий remote URL и обновляем если нужно
+              CURRENT_URL=$(git remote get-url origin 2>/dev/null || echo "")
+              if [ "$CURRENT_URL" != "$GIT_URL" ]; then
+                echo "Обновляем remote URL..."
+                git remote set-url origin "$GIT_URL"
+              fi
+              git fetch origin
+              git reset --hard origin/$GIT_BRANCH
+              git clean -fd
+            else
+              echo "Клонируем репозиторий..."
+              git clone -b $GIT_BRANCH $GIT_URL .
+            fi
+            
+            # Проверяем наличие .env файла
+            if [ ! -f ".env" ]; then
+              echo "ВНИМАНИЕ: Файл .env не найден! Создайте его вручную."
+              exit 1
+            fi
+            
+            # Останавливаем старые контейнеры
+            echo "Останавливаем старые контейнеры..."
+            docker compose down || true
+            
+            # Собираем и запускаем новые контейнеры
+            echo "Собираем и запускаем контейнеры..."
+            docker compose up -d --build
+            
+            # Показываем статус
+            echo "Статус контейнеров:"
+            docker compose ps
+            
+            # Очищаем неиспользуемые образы (опционально)
+            echo "Очищаем неиспользуемые образы..."
+            docker image prune -f || true
