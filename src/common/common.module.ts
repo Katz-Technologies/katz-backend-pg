@@ -1,7 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { Config } from 'src/common/config/config';
-import { ExternalRedisModule } from './redis/external-redis.module';
+// import { ExternalRedisModule } from './redis/external-redis.module';
 import { InternalRedisModule } from './redis/internal-redis.module';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { IAppConfig, IThrottlerConfig } from './config/config.interface';
@@ -23,7 +23,7 @@ import { IAppConfig, IThrottlerConfig } from './config/config.interface';
         },
       ],
     }),
-    ExternalRedisModule,
+    // ExternalRedisModule,
     InternalRedisModule,
     // SocketClientModule,
   ],
