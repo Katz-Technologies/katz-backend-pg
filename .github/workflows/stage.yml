@@ -204,13 +204,14 @@ jobs:
             fi
             echo ""
             
-            # Останавливаем старые контейнеры
-            echo "Останавливаем старые контейнеры..."
-            docker compose down || true
+            # Останавливаем только приложение (не трогаем Redis)
+            echo "Останавливаем старое приложение..."
+            docker compose stop katz-backend || true
+            docker compose rm -f katz-backend || true
             
-            # Собираем и запускаем новые контейнеры
-            echo "Собираем и запускаем контейнеры..."
-            docker compose up -d --build
+            # Собираем и запускаем только приложение (без зависимостей)
+            echo "Собираем и запускаем приложение..."
+            docker compose up -d --build --no-deps katz-backend
             
             # Показываем статус
             echo "Статус контейнеров:"
