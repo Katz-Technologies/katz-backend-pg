@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { XrplMetaController } from './xrpl-meta.controller';
-import { XrplMetaModule } from 'src/service/xrpl-meta/xrpl-meta.module';
+import { XrplMetaModule } from 'src/integrations/xrpl-meta/xrpl-meta.module';
 
 @Module({
   controllers: [XrplMetaController],

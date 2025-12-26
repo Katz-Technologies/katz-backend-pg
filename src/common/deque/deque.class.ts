@@ -5,12 +5,12 @@ export class Deque<T> {
   private head = 0;
   private tail = 0;
 
-  pushFront(value: T) {
+  pushFront(value: T): void {
     this.head--;
     this.items[this.head] = value;
   }
 
-  pushBack(value: T) {
+  pushBack(value: T): void {
     this.items[this.tail] = value;
     this.tail++;
   }
@@ -31,14 +31,17 @@ export class Deque<T> {
     return value;
   }
 
-  get size() {
+  get size(): number {
     return this.tail - this.head;
   }
 
-  toJSON() {
+  toJSON(): T[] {
     const arr: T[] = [];
     for (let i = this.head; i < this.tail; i++) {
-      if (i in this.items) arr.push(this.items[i]);
+      const item = this.items[i];
+      if (item !== undefined) {
+        arr.push(item);
+      }
     }
     return arr;
   }

@@ -16,7 +16,7 @@ export class SocketClientGateway implements OnModuleInit {
     this.socketConfig = this.configService.getOrThrow<ISocketConfig>('socket');
   }
 
-  onModuleInit() {
+  onModuleInit(): void {
     const socketUrl = this.socketConfig.url;
     this.logger.log(`Attempting to connect to socket server at: ${socketUrl}`);
 

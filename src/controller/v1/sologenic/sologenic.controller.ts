@@ -1,16 +1,19 @@
 import { Controller, Get, Post, Query, Body } from '@nestjs/common';
-import { SologenicService } from 'src/service/sologenic/sologenic.service';
+import { SologenicService } from 'src/integrations/sologenic/sologenic.service';
 import { GetOhlcDto } from './dto/get-ohlc.dto';
 import { GetTickersDto } from './dto/get-tickers.dto';
 import { GetTradesDto } from './dto/get-trades.dto';
 import { IssuedCurrency, XRP } from 'xrpl';
+import { IOhlcResponse } from 'src/integrations/sologenic/interface/ohlc-response.interface';
+import { ITickersResponse } from 'src/integrations/sologenic/interface/tickers-response.interface';
+import { ITradesResponse } from 'src/integrations/sologenic/interface/trades-response.interface';
 
 @Controller('v1/sologenic')
 export class SologenicController {
   constructor(private readonly sologenicService: SologenicService) {}
 
   @Get('ohlc')
-  async getOhlc(@Query() params: GetOhlcDto) {
+  async getOhlc(@Query() params: GetOhlcDto): Promise<IOhlcResponse> {
     const asset: IssuedCurrency | XRP =
       params.assetCurrency === 'XRP'
         ? { currency: 'XRP' }
@@ -37,7 +40,7 @@ export class SologenicController {
   }
 
   @Post('tickers/24h')
-  async getTickers24h(@Body() data: GetTickersDto) {
+  async getTickers24h(@Body() data: GetTickersDto): Promise<ITickersResponse> {
     const symbols = data.symbols.map((v) => {
       const asset: IssuedCurrency | XRP =
         v.assetCurrency === 'XRP'
@@ -62,7 +65,7 @@ export class SologenicController {
   }
 
   @Get('trades')
-  async getTrades(@Query() params: GetTradesDto) {
+  async getTrades(@Query() params: GetTradesDto): Promise<ITradesResponse> {
     let asset: IssuedCurrency | XRP | undefined;
     let asset2: IssuedCurrency | XRP | undefined;
 

@@ -3,14 +3,14 @@ import { Type } from 'class-transformer';
 
 class SymbolDto {
   @IsString()
-  assetCurrency: string;
+  assetCurrency!: string;
 
   @IsString()
   @IsOptional()
   assetIssuer?: string;
 
   @IsString()
-  asset2Currency: string;
+  asset2Currency!: string;
 
   @IsString()
   @IsOptional()
@@ -21,5 +21,5 @@ export class GetTickersDto {
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => SymbolDto)
-  symbols: SymbolDto[];
+  symbols!: SymbolDto[];
 }

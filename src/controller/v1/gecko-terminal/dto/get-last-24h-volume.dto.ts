@@ -2,8 +2,8 @@ import { IsString } from 'class-validator';
 
 export class GetLast24hVolumeDto {
   @IsString()
-  currency: string;
+  currency!: string;
 
   @IsString()
-  issuer: string;
+  issuer!: string;
 }

@@ -1,53 +1,68 @@
-import type { IAppConfig } from './config.interface';
+import type { IAppConfig, IRedisKeysConfig } from './config.interface';
+
+const getEnvNumber = (key: string, defaultValue: number): number => {
+  const value = process.env[key];
+  return value ? Number(value) : defaultValue;
+};
+
+const getEnvString = (key: string, defaultValue: string): string => {
+  return process.env[key] || defaultValue;
+};
+
+const getEnvBoolean = (key: string, defaultValue: boolean): boolean => {
+  const value = process.env[key];
+  if (value === undefined) return defaultValue;
+  return value !== 'false';
+};
+
+const getEnvArray = (key: string, defaultValue: string[]): string[] => {
+  const value = process.env[key];
+  return value ? value.split(',').map((topic) => topic.trim()) : defaultValue;
+};
+
+const getRedisKeys = (): IRedisKeysConfig => ({
+  challengeTokens: 'challenge-token',
+  country: 'country',
+  avatar: 'avatar',
+  reservedUsername: 'reserved-username',
+});
 
 export const Config = (): IAppConfig => {
   return {
-    port: Number(process.env.PORT) || 3000,
-    nodeEnv: process.env.NODE_ENV || 'development',
+    port: getEnvNumber('PORT', 3000),
+    nodeEnv: getEnvString('NODE_ENV', 'development'),
 
     externalRedis: {
-      host: process.env.EXTERNAL_REDIS_HOST || 'localhost',
-      port: Number(process.env.EXTERNAL_REDIS_PORT) || 6379,
-      keys: {
-        challengeTokens: 'challenge-token',
-        country: 'country',
-        avatar: 'avatar',
-        reservedUsername: 'reserved-username',
-      },
+      host: getEnvString('EXTERNAL_REDIS_HOST', 'localhost'),
+      port: getEnvNumber('EXTERNAL_REDIS_PORT', 6379),
+      keys: getRedisKeys(),
     },
 
     socket: {
-      url: process.env.SOCKET_URL || 'http://localhost:3001',
-      topics: process.env.SOCKET_TOPICS
-        ? process.env.SOCKET_TOPICS.split(',').map((topic) => topic.trim())
-        : [],
+      url: getEnvString('SOCKET_URL', 'http://localhost:3001'),
+      topics: getEnvArray('SOCKET_TOPICS', []),
     },
 
     localRedis: {
-      host: process.env.INTERNAL_REDIS_HOST || 'localhost',
-      port: Number(process.env.INTERNAL_REDIS_PORT) || 6379,
-      keys: {
-        challengeTokens: 'challenge-token',
-        country: 'country',
-        avatar: 'avatar',
-        reservedUsername: 'reserved-username',
-      },
+      host: getEnvString('INTERNAL_REDIS_HOST', 'localhost'),
+      port: getEnvNumber('INTERNAL_REDIS_PORT', 6379),
+      keys: getRedisKeys(),
     },
 
     clickhouse: {
-      host: process.env.CLICKHOUSE_HOST || 'http://localhost:8123',
-      username: process.env.CLICKHOUSE_USERNAME || 'default',
-      password: process.env.CLICKHOUSE_PASSWORD || '',
-      database: process.env.CLICKHOUSE_DATABASE || 'xrpl',
-      requestTimeout: Number(process.env.CLICKHOUSE_REQUEST_TIMEOUT) || 600000,
-      maxOpenConnections: Number(process.env.CLICKHOUSE_MAX_CONNECTIONS) || 10,
-      keepAlive: process.env.CLICKHOUSE_KEEP_ALIVE !== 'false',
-      compression: process.env.CLICKHOUSE_COMPRESSION !== 'false',
+      host: getEnvString('CLICKHOUSE_HOST', 'http://localhost:8123'),
+      username: getEnvString('CLICKHOUSE_USERNAME', 'default'),
+      password: getEnvString('CLICKHOUSE_PASSWORD', ''),
+      database: getEnvString('CLICKHOUSE_DATABASE', 'xrpl'),
+      requestTimeout: getEnvNumber('CLICKHOUSE_REQUEST_TIMEOUT', 600000),
+      maxOpenConnections: getEnvNumber('CLICKHOUSE_MAX_CONNECTIONS', 10),
+      keepAlive: getEnvBoolean('CLICKHOUSE_KEEP_ALIVE', true),
+      compression: getEnvBoolean('CLICKHOUSE_COMPRESSION', true),
     },
 
     throttler: {
-      limit: Number(process.env.THROTTLER_LIMIT) || 60,
-      ttl: Number(process.env.THROTTLER_TTL) || 60000,
+      limit: getEnvNumber('THROTTLER_LIMIT', 60),
+      ttl: getEnvNumber('THROTTLER_TTL', 60000),
     },
   };
 };

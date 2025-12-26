@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { ProcessedMoneyFlowRow } from 'src/service/smart_money/type/processed-money-flow-row.type';
-import { ChainStep } from 'src/service/smart_money/type/chain-step.type';
+import { ProcessedMoneyFlowRow } from 'src/services/smart-money/type/processed-money-flow-row.type';
+import { ChainStep } from 'src/services/smart-money/type/chain-step.type';
 
 @Injectable()
 export class ChainDomain {
@@ -26,6 +26,7 @@ export class ChainDomain {
 
     for (let i = steps.length - 1; i >= 0; i--) {
       const step = steps[i];
+      if (!step) continue;
 
       if (i === steps.length - 1) {
         step.proportionalFromAmount = currentQty;

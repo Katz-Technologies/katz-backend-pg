@@ -3,7 +3,7 @@ import { Transform } from 'class-transformer';
 
 export class GetNftVolumesExtendedDto {
   @IsString()
-  list: 'collections';
+  list!: 'collections';
 
   @IsString()
   @IsOptional()

@@ -8,12 +8,12 @@ import {
   Logger,
 } from '@nestjs/common';
 import pLimit from 'p-limit';
-import { IconsCacheService } from 'src/service/cron/icons-cache.service';
-import { IconsService } from 'src/service/cron/icons.service';
-import { IconOptimizerService } from 'src/service/cron/icon-optimizer.service';
-import { ETopType } from 'src/service/cron/enum/top-types.enum';
-import { ALL_TOP_TYPES } from 'src/service/cron/utils/top-mapping';
-import { IToken } from 'src/service/xrpl-meta/interface/get-tokens-response.interface';
+import { IconsCacheService } from 'src/services/icons/icons-cache.service';
+import { IconsService } from 'src/services/icons/icons.service';
+import { IconOptimizerService } from 'src/services/icons/icon-optimizer.service';
+import { ETopType } from 'src/jobs/enum/top-types.enum';
+import { ALL_TOP_TYPES } from 'src/jobs/utils/top-mapping';
+import { IToken } from 'src/integrations/xrpl-meta/interface/get-tokens-response.interface';
 import { GetTopTokenDto } from './dto/get-top-token.dto';
 
 @Controller('v1/top-tokens')
@@ -27,7 +27,14 @@ export class TopTokensController {
   ) {}
 
   @Post('token')
-  async getTopToken(@Body() body: GetTopTokenDto) {
+  async getTopToken(
+    @Body() body: GetTopTokenDto,
+  ): Promise<
+    Array<
+      | (IToken & { icon: string | null; defaultIcon: string | null })
+      | { currency: string; issuer: string; error: string }
+    >
+  > {
     try {
       const fallbackIcon = await this.iconsCacheService.getFallbackTokenIcon();
       const defaultIcon = fallbackIcon
@@ -113,7 +120,10 @@ export class TopTokensController {
   }
 
   @Get('trending')
-  async getTopTokensForTrending() {
+  async getTopTokensForTrending(): Promise<{
+    tokens: Array<IToken & { icon: string | null }>;
+    defaultIcon: string | null;
+  }> {
     try {
       const tokens = await this.iconsCacheService.getTopTokensForTrending();
 
@@ -177,7 +187,10 @@ export class TopTokensController {
   }
 
   @Post('icons/accounts')
-  async getAccountIcons(@Body() body: { addresses: string[] }) {
+  async getAccountIcons(@Body() body: { addresses: string[] }): Promise<{
+    icons: Array<{ address: string; icon: string | null }>;
+    defaultIcon: string | null;
+  }> {
     if (!body.addresses || !Array.isArray(body.addresses)) {
       throw new HttpException(
         'Addresses array is required',
@@ -275,7 +288,14 @@ export class TopTokensController {
     body: {
       tokens: Array<{ currency: string; issuer: string }>;
     },
-  ) {
+  ): Promise<{
+    icons: Array<{
+      currency: string;
+      issuer: string;
+      icon: string | null;
+    }>;
+    defaultIcon: string | null;
+  }> {
     if (!body.tokens || !Array.isArray(body.tokens)) {
       throw new HttpException(
         'Tokens array is required',
@@ -338,7 +358,15 @@ export class TopTokensController {
   }
 
   @Get()
-  async getAllTopTokens() {
+  async getAllTopTokens(): Promise<
+    Record<
+      ETopType,
+      {
+        tokens: Array<IToken & { icon: string | null }>;
+        defaultIcon: string | null;
+      }
+    >
+  > {
     try {
       const allTopTokens = await this.iconsCacheService.getAllTopTokens();
       const fallbackIcon = await this.iconsCacheService.getFallbackTokenIcon();

@@ -8,7 +8,7 @@ export class BackendException extends Error {
   public readonly code: EErrorCode;
   public readonly httpCode: HttpStatus;
   public readonly messageDebug: string;
-  public readonly data: any;
+  public readonly data: unknown;
 
   constructor(code: EErrorCode, data?: IError) {
     const error: IError = errorsDeclaration[code];

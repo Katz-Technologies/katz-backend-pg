@@ -11,7 +11,7 @@ import { IAppConfig } from './common/config/config.interface';
 import { ConfigService } from '@nestjs/config';
 import { LoggingInterceptor } from './common/logger/logging.interceptor';
 
-async function bootstrap() {
+async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, {
     // bufferLogs: true,
   });
@@ -31,7 +31,7 @@ async function bootstrap() {
         enableImplicitConversion: true,
       },
       whitelist: true,
-      exceptionFactory(validationErrors: ValidationError[]) {
+      exceptionFactory(validationErrors: ValidationError[]): ValidateException {
         return new ValidateException(validationErrors);
       },
     }),

@@ -6,27 +6,27 @@ on:
       - dev
       - 'feature/dev-*'
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     branches:
       - dev
       - main
+      - stage
 
 jobs:
+  # Основные проверки кода (lint, type check, tests)
   lint-and-test:
-    name: Lint and Test
+    name: dev - lint and test
     runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        node-version: [20.x]
+    timeout-minutes: 15
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js ${{ matrix.node-version }}
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: '20.x'
           cache: 'npm'
 
       - name: Install dependencies
@@ -35,6 +35,277 @@ jobs:
       - name: Run linter
         run: npm run lint
 
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Run tests
+        run: npm test -- --watchAll=false
+
       - name: Build application
         run: npm run build
 
+      - name: Check build output size
+        run: |
+          BUILD_SIZE=$(du -sh dist | cut -f1)
+          echo "Build size: $BUILD_SIZE"
+          # Fail if build is too large (adjust threshold as needed)
+          DIST_SIZE=$(du -sm dist | cut -f1)
+          echo "Build size: ${DIST_SIZE} MB"
+          if [ "$DIST_SIZE" -gt 100 ]; then
+            echo "❌ Error: Build size ($DIST_SIZE MB) exceeds 100 MB threshold"
+            echo "Please optimize the build or increase the threshold if necessary"
+            exit 1
+          else
+            echo "✅ Build size is acceptable (${DIST_SIZE} MB <= 100 MB)"
+          fi
+
+  # Проверка безопасности
+  security:
+    name: Security Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for secret scanning
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run npm audit
+        run: |
+          echo "Running npm audit..."
+          npm audit --audit-level=moderate || {
+            echo "⚠️ npm audit found vulnerabilities"
+            echo "Review the output above and fix critical/high vulnerabilities"
+            echo "For moderate/low vulnerabilities, consider updating dependencies"
+            # Don't fail on moderate, but warn
+            exit 0
+          }
+
+      - name: Check for secrets
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || (github.event.before || github.event.repository.default_branch) }}
+          head: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || (github.event.after || github.sha) }}
+          extra_args: --only-verified
+        continue-on-error: true
+
+      - name: Check for hardcoded secrets (grep)
+        run: |
+          echo "Checking for potential secrets..."
+          # Check for common secret patterns (excluding test files and known safe patterns)
+          if grep -r -E "(password|secret|token|api[_-]?key|private[_-]?key)\s*[:=]\s*['\"][^'\"]{10,}" \
+            --include="*.ts" --include="*.js" \
+            --exclude-dir=node_modules --exclude-dir=dist --exclude-dir=coverage \
+            src/ 2>/dev/null | grep -v "test" | grep -v "spec" | grep -v "example" || true; then
+            echo "⚠️ Warning: Potential hardcoded secrets found. Please review."
+            # Don't fail, just warn - let trufflehog handle actual secret detection
+          else
+            echo "✅ No obvious hardcoded secrets found"
+          fi
+
+  # Проверка качества кода
+  code-quality:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check code complexity
+        run: |
+          echo "Checking code complexity..."
+          # Run ESLint to check complexity rules
+          npm run lint || {
+            echo "⚠️ Linting found complexity issues"
+            echo "Review the output above and refactor complex code"
+            exit 1
+          }
+
+      - name: Check for code duplication
+        run: |
+          echo "Checking for code duplication..."
+          # jscpd exits with code 1 if duplication exceeds threshold
+          # We want to fail if duplication > 5%
+          npx -y jscpd src/ --min-lines 5 --min-tokens 50 --threshold 5 \
+            --ignore "node_modules,dist,coverage,**/*.spec.ts,**/*.test.ts" \
+            --format json --output jscpd-report.json && {
+            echo "✅ Code duplication check passed (below 5% threshold)"
+          } || {
+            echo "⚠️ Code duplication detected (exceeds 5% threshold)"
+            if [ -f jscpd-report.json ]; then
+              DUPLICATION=$(cat jscpd-report.json | grep -o '"percentage":[0-9.]*' | cut -d':' -f2 || echo "unknown")
+              echo "Code duplication: ${DUPLICATION}%"
+            fi
+            echo "Review jscpd-report.json for details and refactor duplicated code"
+            exit 1
+          }
+
+      - name: Validate package.json
+        run: |
+          echo "Validating package.json..."
+          node -e "JSON.parse(require('fs').readFileSync('package.json', 'utf8'))"
+          echo "✅ package.json is valid"
+
+      - name: Validate tsconfig.json
+        run: |
+          echo "Validating tsconfig.json..."
+          npx tsc --showConfig > /dev/null
+          echo "✅ tsconfig.json is valid"
+
+  # Проверка Docker файлов
+  docker-checks:
+    name: Docker File Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Hadolint on Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+          failure-threshold: warning
+          ignore: DL3008,DL3009
+
+      - name: Validate docker-compose.yml
+        run: |
+          echo "Validating docker-compose.yml..."
+          # Try docker compose first (newer syntax)
+          if docker compose config > /dev/null 2>&1; then
+            echo "✅ docker-compose.yml is valid (docker compose)"
+          elif command -v docker-compose &> /dev/null; then
+            docker-compose config > /dev/null
+            echo "✅ docker-compose.yml is valid (docker-compose)"
+          else
+            # Fallback: basic YAML validation with Python
+            if command -v python3 &> /dev/null; then
+              python3 -c "import yaml; yaml.safe_load(open('docker-compose.yml'))" && echo "✅ docker-compose.yml is valid (YAML syntax)" || echo "⚠️ docker-compose.yml validation failed"
+            else
+              echo "⚠️ Could not validate docker-compose.yml (docker and python not available)"
+            fi
+          fi
+
+  # Проверка конфигурационных файлов
+  config-validation:
+    name: Config File Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate JSON files
+        run: |
+          echo "Validating JSON files..."
+          find . -name "*.json" -not -path "*/node_modules/*" -not -path "*/dist/*" -not -path "*/.git/*" | while read file; do
+            echo "Checking $file..."
+            node -e "JSON.parse(require('fs').readFileSync('$file', 'utf8'))" || exit 1
+          done
+          echo "✅ All JSON files are valid"
+
+      - name: Validate YAML files
+        run: |
+          echo "Validating YAML files..."
+          if command -v python3 &> /dev/null; then
+            python3 << 'EOF'
+          import yaml
+          import sys
+          import glob
+          import os
+          
+          yaml_files = glob.glob('**/*.yml', recursive=True) + glob.glob('**/*.yaml', recursive=True)
+          yaml_files = [f for f in yaml_files if 'node_modules' not in f and '.git' not in f and 'dist' not in f]
+          
+          errors = []
+          for file in yaml_files:
+              try:
+                  with open(file, 'r') as f:
+                      yaml.safe_load(f)
+                  print(f'✅ {file}')
+              except Exception as e:
+                  print(f'❌ {file}: {e}')
+                  errors.append(file)
+          
+          if errors:
+              print(f'\n⚠️ {len(errors)} YAML file(s) have errors')
+              sys.exit(1)
+          EOF
+          else
+            echo "⚠️ YAML validation skipped (Python3 not available)"
+          fi
+
+  # Финальная проверка - все должно пройти
+  ci-success:
+    name: CI Success Check
+    runs-on: ubuntu-latest
+    needs: [lint-and-test, security, code-quality, docker-checks, config-validation]
+    if: always()
+
+    steps:
+      - name: Check all jobs status
+        run: |
+          echo "Checking CI job results..."
+          echo "lint-and-test: ${{ needs.lint-and-test.result }}"
+          echo "security: ${{ needs.security.result }}"
+          echo "code-quality: ${{ needs.code-quality.result }}"
+          echo "docker-checks: ${{ needs.docker-checks.result }}"
+          echo "config-validation: ${{ needs.config-validation.result }}"
+          
+          FAILED_JOBS=0
+          
+          if [ "${{ needs.lint-and-test.result }}" != "success" ]; then
+            echo "❌ lint-and-test failed"
+            FAILED_JOBS=$((FAILED_JOBS + 1))
+          fi
+          
+          if [ "${{ needs.security.result }}" != "success" ]; then
+            echo "❌ security check failed"
+            FAILED_JOBS=$((FAILED_JOBS + 1))
+          fi
+          
+          if [ "${{ needs.code-quality.result }}" != "success" ]; then
+            echo "❌ code-quality check failed"
+            FAILED_JOBS=$((FAILED_JOBS + 1))
+          fi
+          
+          if [ "${{ needs.docker-checks.result }}" != "success" ]; then
+            echo "❌ docker-checks failed"
+            FAILED_JOBS=$((FAILED_JOBS + 1))
+          fi
+          
+          if [ "${{ needs.config-validation.result }}" != "success" ]; then
+            echo "❌ config-validation failed"
+            FAILED_JOBS=$((FAILED_JOBS + 1))
+          fi
+          
+          if [ $FAILED_JOBS -gt 0 ]; then
+            echo "❌ $FAILED_JOBS job(s) failed. Please fix the issues above."
+            exit 1
+          fi
+          
+          echo "✅ All CI checks passed successfully"

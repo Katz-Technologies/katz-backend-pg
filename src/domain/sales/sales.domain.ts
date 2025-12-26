@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { ProcessedMoneyFlowRow } from 'src/service/smart_money/type/processed-money-flow-row.type';
-import { SaleData } from 'src/service/smart_money/type/sale-data.type';
-import { SaleVolumesData } from 'src/service/smart_money/type/sale-volumes-data.type';
-import { AssetId } from 'src/service/smart_money/type/asset-id.type';
-import { PurchaseData } from 'src/service/smart_money/type/purchase-data.type';
+import { ProcessedMoneyFlowRow } from 'src/services/smart-money/type/processed-money-flow-row.type';
+import { SaleData } from 'src/services/smart-money/type/sale-data.type';
+import { SaleVolumesData } from 'src/services/smart-money/type/sale-volumes-data.type';
+import { AssetId } from 'src/services/smart-money/type/asset-id.type';
+import { PurchaseData } from 'src/services/smart-money/type/purchase-data.type';
 import { Deque } from '../../common/deque/deque.class';
 import { ChainDomain } from '../chain/chain.domain';
 
@@ -40,54 +40,51 @@ export class SalesDomain {
     moneyFlow: ProcessedMoneyFlowRow,
   ): void {
     const swapChainStep = this.chainDomain.createChainStep(moneyFlow);
-    let swapWritten = false;
+    let remainingFromAmt = Math.abs(moneyFlow.fromAmount);
+    const toAmt = moneyFlow.toAmount;
 
-    while (!swapWritten) {
+    while (remainingFromAmt > 0) {
       const purchaseList = purchases.get(moneyFlow.fromAsset);
       if (!purchaseList) break;
 
       const purchase = purchaseList.popBack();
       if (!purchase) break;
 
-      const fromAmt = moneyFlow.fromAmount;
-      const toAmt = moneyFlow.toAmount;
-
       let qty = 0;
-      let isFromAmt = false;
-      if (purchase.qty < fromAmt) {
+      if (purchase.qty < remainingFromAmt) {
         qty = purchase.qty;
+        remainingFromAmt -= qty;
       } else {
-        isFromAmt = true;
-        qty = fromAmt;
-      }
-      const cost = (purchase.fromAmount * qty) / purchase.qty;
-      const proceeds = (toAmt * qty) / fromAmt;
+        qty = remainingFromAmt;
+        remainingFromAmt = 0;
 
-      if (isFromAmt) {
-        swapWritten = true;
-
-        if (purchase.qty > fromAmt) {
+        if (purchase.qty > qty) {
           purchases.get(moneyFlow.fromAsset)!.pushBack({
             qty: purchase.qty - qty,
-            fromAmount: purchase.fromAmount - cost,
+            fromAmount:
+              purchase.fromAmount +
+              Math.abs((purchase.fromAmount * qty) / purchase.qty),
             chain: purchase.chain,
           });
         }
       }
+
+      const cost = Math.abs((purchase.fromAmount * qty) / purchase.qty);
+      const proceeds = (toAmt * qty) / Math.abs(moneyFlow.fromAmount);
 
       const key = `${moneyFlow.toAsset}`;
       if (purchases.has(key)) {
         const targetDeque = purchases.get(key)!;
         targetDeque.pushFront({
           qty: proceeds,
-          fromAmount: cost,
+          fromAmount: -cost,
           chain: [...purchase.chain, swapChainStep],
         });
       } else {
         purchases.set(key, new Deque<PurchaseData>());
         purchases.get(key)!.pushFront({
           qty: proceeds,
-          fromAmount: cost,
+          fromAmount: -cost,
           chain: [...purchase.chain, swapChainStep],
         });
       }
@@ -100,41 +97,37 @@ export class SalesDomain {
     moneyFlow: ProcessedMoneyFlowRow,
   ): void {
     const saleChainStep = this.chainDomain.createChainStep(moneyFlow);
-    let positionClosed = false;
+    let remainingFromAmt = Math.abs(moneyFlow.fromAmount);
+    const toAmt = moneyFlow.toAmount;
 
-    while (!positionClosed) {
+    while (remainingFromAmt > 0) {
       const purchaseList = purchases.get(moneyFlow.fromAsset);
       if (!purchaseList) break;
 
       const purchase = purchaseList.popBack();
       if (!purchase) break;
 
-      const fromAmt = moneyFlow.fromAmount;
-      const toAmt = moneyFlow.toAmount;
-
       let qty = 0;
-      let isFromAmt = false;
-      if (purchase.qty < fromAmt) {
+      if (purchase.qty < remainingFromAmt) {
         qty = purchase.qty;
+        remainingFromAmt -= qty;
       } else {
-        isFromAmt = true;
-        qty = fromAmt;
-      }
+        qty = remainingFromAmt;
+        remainingFromAmt = 0;
 
-      const cost = (purchase.fromAmount * qty) / purchase.qty;
-      const proceeds = (toAmt * qty) / fromAmt;
-
-      if (isFromAmt) {
-        positionClosed = true;
-
-        if (purchase.qty > fromAmt) {
+        if (purchase.qty > qty) {
           purchaseList.pushBack({
             qty: purchase.qty - qty,
-            fromAmount: purchase.fromAmount - cost,
+            fromAmount:
+              purchase.fromAmount +
+              Math.abs((purchase.fromAmount * qty) / purchase.qty),
             chain: purchase.chain,
           });
         }
       }
+
+      const cost = Math.abs((purchase.fromAmount * qty) / purchase.qty);
+      const proceeds = (toAmt * qty) / Math.abs(moneyFlow.fromAmount);
 
       if (proceeds > 0.000001) {
         const pnl = proceeds - cost;
@@ -169,11 +162,16 @@ export class SalesDomain {
     const sales: SaleData[] = [];
 
     for (const moneyFlow of processedMoneyFlowRows) {
-      if (moneyFlow.fromAsset === asset && moneyFlow.toAsset !== asset) {
+      if (moneyFlow.toAsset === asset && moneyFlow.fromAsset !== asset) {
         this.addPurchase(purchases, moneyFlow);
-      } else if (moneyFlow.toAsset === asset && moneyFlow.fromAsset !== asset) {
+      } else if (moneyFlow.fromAsset === asset && moneyFlow.toAsset !== asset) {
         this.addSale(purchases, sales, moneyFlow);
-      } else {
+      } else if (
+        moneyFlow.fromAsset !== asset &&
+        moneyFlow.toAsset !== asset &&
+        moneyFlow.fromAsset !== 'XRP' &&
+        moneyFlow.toAsset !== 'XRP'
+      ) {
         this.manageNonXrpSwap(purchases, moneyFlow);
       }
     }
@@ -189,6 +187,8 @@ export class SalesDomain {
 
       const firstStep = sale.chain[0];
       const lastStep = sale.chain[sale.chain.length - 1];
+
+      if (!firstStep || !lastStep) continue;
 
       const fromAmount = firstStep.proportionalFromAmount || 0;
       const toAmount = lastStep.proportionalToAmount || 0;
@@ -216,9 +216,10 @@ export class SalesDomain {
     }
 
     for (const token in volumes) {
-      volumes[token].totalVolume =
-        volumes[token].fromVolume + volumes[token].toVolume;
-      volumes[token].pnl = volumes[token].toVolume - volumes[token].fromVolume;
+      const volume = volumes[token];
+      if (!volume) continue;
+      volume.totalVolume = volume.fromVolume + volume.toVolume;
+      volume.pnl = volume.toVolume - volume.fromVolume;
     }
 
     const sortedEntries = Object.entries(volumes).sort(
