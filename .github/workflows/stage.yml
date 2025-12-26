@@ -106,15 +106,13 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
-          envs: ENV_FILE_CONTENT
-        env:
-          ENV_FILE_CONTENT: ${{ secrets.ENV_FILE }}
-        script: |
+          script: |
             set -e
             
             DEPLOY_PATH="${{ secrets.STAGING_DEPLOY_PATH || secrets.DEPLOY_PATH || '/home/ubuntu/katz-backend-stage' }}"
             GIT_REPO="${{ secrets.GIT_REPO || github.repository }}"
             GIT_BRANCH="stage"
+            ENV_FILE_CONTENT='${{ secrets.ENV_FILE }}'
             
             echo "=========================================="
             echo "Начало деплоя на STAGING"
