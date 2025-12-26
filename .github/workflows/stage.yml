@@ -106,7 +106,10 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
-          script: |
+          envs: ENV_FILE_CONTENT
+        env:
+          ENV_FILE_CONTENT: ${{ secrets.ENV_FILE }}
+        script: |
             set -e
             
             DEPLOY_PATH="${{ secrets.STAGING_DEPLOY_PATH || secrets.DEPLOY_PATH || '/home/ubuntu/katz-backend-stage' }}"
@@ -188,15 +191,19 @@ jobs:
             fi
             echo ""
             
-            # Проверяем наличие .env файла
-            echo "Проверяем наличие .env файла..."
-            if [ ! -f ".env" ]; then
-              echo "⚠️ ВНИМАНИЕ: Файл .env не найден!"
-              echo "Создайте файл .env вручную на сервере в директории $DEPLOY_PATH"
-              echo "Или временно закомментируйте эту проверку для первого деплоя"
+            # Создаем или обновляем .env файл из секрета
+            echo "Создаем/обновляем .env файл..."
+            if [ -n "$ENV_FILE_CONTENT" ]; then
+              echo "$ENV_FILE_CONTENT" > .env
+              echo "✅ Файл .env создан из секрета ENV_FILE"
+            elif [ -f ".env" ]; then
+              echo "✅ Файл .env уже существует на сервере (используется существующий)"
+            else
+              echo "⚠️ ВНИМАНИЕ: Файл .env не найден и секрет ENV_FILE не установлен!"
+              echo "Добавьте секрет ENV_FILE в GitHub Secrets для environment 'staging'"
+              echo "Или создайте файл .env вручную на сервере в директории $DEPLOY_PATH"
               exit 1
             fi
-            echo "✅ Файл .env найден"
             echo ""
             
             # Останавливаем старые контейнеры
