@@ -14,6 +14,7 @@ jobs:
   check-dev-status:
     name: Check dev branch status
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/stage'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -30,42 +31,41 @@ jobs:
           && sudo apt install gh -y
 
       - name: Check if commit passed CI on dev
+        if: github.event_name == 'pull_request'
         run: |
           echo "Checking if latest dev commit passed CI..."
           
-          # Get the commit SHA from the current branch (should be from dev)
-          CURRENT_SHA="${{ github.sha }}"
-          echo "Current commit SHA: $CURRENT_SHA"
-          
-          # Get the latest commit from dev branch
-          git fetch origin dev:dev 2>/dev/null || true
-          DEV_SHA=$(git rev-parse origin/dev 2>/dev/null || echo "")
-          
-          if [ -z "$DEV_SHA" ]; then
-            echo "⚠️ Could not determine dev branch SHA, using current commit"
-            DEV_SHA="$CURRENT_SHA"
-          fi
-          
-          echo "Checking CI status for dev commit: $DEV_SHA"
-          
-          # Check CI status using GitHub API
-          CI_STATUS=$(gh api repos/${{ github.repository }}/commits/$DEV_SHA/status --jq '.state' 2>/dev/null || echo "unknown")
-          
-          if [ "$CI_STATUS" = "success" ]; then
-            echo "✅ CI passed on dev branch for commit $DEV_SHA"
-          elif [ "$CI_STATUS" = "pending" ]; then
-            echo "⚠️ CI is still running on dev branch for commit $DEV_SHA"
-            echo "⚠️ Continuing anyway, but this should be investigated"
-          elif [ "$CI_STATUS" = "failure" ] || [ "$CI_STATUS" = "error" ]; then
-            echo "❌ CI failed on dev branch for commit $DEV_SHA"
-            echo "❌ Deployment blocked: code must pass CI on dev before deploying to stage"
-            exit 1
+          # For PR, get the head branch (should be dev)
+          if [ "${{ github.event.pull_request.head.ref }}" = "dev" ]; then
+            HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+            echo "PR head commit SHA: $HEAD_SHA"
+            
+            # Check CI status using GitHub API
+            CI_STATUS=$(gh api repos/${{ github.repository }}/commits/$HEAD_SHA/status --jq '.state' 2>/dev/null || echo "unknown")
+            
+            if [ "$CI_STATUS" = "success" ]; then
+              echo "✅ CI passed on dev branch for commit $HEAD_SHA"
+            elif [ "$CI_STATUS" = "pending" ]; then
+              echo "⚠️ CI is still running on dev branch for commit $HEAD_SHA"
+              echo "⚠️ Continuing anyway, but this should be investigated"
+            elif [ "$CI_STATUS" = "failure" ] || [ "$CI_STATUS" = "error" ]; then
+              echo "❌ CI failed on dev branch for commit $HEAD_SHA"
+              echo "❌ Deployment blocked: code must pass CI on dev before deploying to stage"
+              exit 1
+            else
+              echo "⚠️ Could not determine CI status (got: $CI_STATUS)"
+              echo "⚠️ Continuing, but this should be verified manually"
+            fi
           else
-            echo "⚠️ Could not determine CI status (got: $CI_STATUS)"
-            echo "⚠️ Continuing, but this should be verified manually"
+            echo "⚠️ PR is not from dev branch, skipping CI check"
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Skip check for push events
+        if: github.event_name == 'push'
+        run: |
+          echo "✅ Push event to stage branch, skipping dev CI check"
 
   test-and-deploy:
     name: stage - test and deploy
