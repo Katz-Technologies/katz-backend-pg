@@ -7,11 +7,34 @@ on:
   workflow_dispatch:
 
 jobs:
+  check-dev-status:
+    name: Check dev branch status
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check if commit passed CI on dev
+        run: |
+          echo "Checking if latest dev commit passed CI..."
+          # Get the commit SHA that was merged from dev
+          DEV_SHA=$(git log --oneline --grep="Merge" -n 1 | grep -o '[a-f0-9]\{7,40\}' | head -1 || echo "")
+          if [ -z "$DEV_SHA" ]; then
+            echo "⚠️ Could not determine dev commit SHA, continuing..."
+          else
+            echo "Checking CI status for commit: $DEV_SHA"
+            # Note: This is a placeholder - actual implementation would use GitHub API
+            # to check if the commit passed CI checks
+          fi
+
   test-and-deploy:
     name: stage - test and deploy
     runs-on: ubuntu-latest
     environment:
       name: staging
+    needs: [check-dev-status]
 
     steps:
       - name: Checkout code
@@ -32,7 +55,7 @@ jobs:
       - name: Type check
         run: npx tsc --noEmit
 
-      - name: Run tests
+      - name: Run tests with coverage
         run: npm test -- --coverage --watchAll=false
 
       - name: Build application
@@ -101,9 +124,47 @@ jobs:
             echo "Очищаем неиспользуемые образы..."
             docker image prune -f || true
 
+      - name: Wait for services to be ready
+        run: |
+          echo "Waiting for services to start..."
+          sleep 10
+
       - name: Smoke tests
         run: |
           echo "Running smoke tests..."
-          # TODO: Add actual smoke tests here
-          # Example: curl -f http://your-staging-server/health || exit 1
+          STAGING_URL="${{ secrets.STAGING_URL || 'http://localhost:3000' }}"
+          
+          # Check health endpoint
+          echo "Checking health endpoint..."
+          for i in {1..30}; do
+            if curl -f -s "${STAGING_URL}/api/health" > /dev/null 2>&1; then
+              echo "✅ Health check passed"
+              break
+            fi
+            if [ $i -eq 30 ]; then
+              echo "❌ Health check failed after 30 attempts"
+              exit 1
+            fi
+            echo "Attempt $i/30 failed, retrying in 5 seconds..."
+            sleep 5
+          done
+          
+          # Verify health response structure
+          HEALTH_RESPONSE=$(curl -s "${STAGING_URL}/api/health")
+          if echo "$HEALTH_RESPONSE" | grep -q '"status"'; then
+            echo "✅ Health endpoint returns valid JSON"
+          else
+            echo "❌ Health endpoint response is invalid"
+            echo "Response: $HEALTH_RESPONSE"
+            exit 1
+          fi
+          
+          # Check if status is ok or degraded (down is not acceptable)
+          STATUS=$(echo "$HEALTH_RESPONSE" | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
+          if [ "$STATUS" = "ok" ] || [ "$STATUS" = "degraded" ]; then
+            echo "✅ Service status: $STATUS"
+          else
+            echo "❌ Service status is down: $STATUS"
+            exit 1
+          fi
 

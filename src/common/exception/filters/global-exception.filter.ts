@@ -53,6 +53,8 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     switch (true) {
       case exception instanceof BackendException:
         return <BackendException>exception;
+      case exception instanceof UnauthorizedException:
+        return new BackendException(EErrorCode.Unauthorized);
       case exception instanceof HttpException: {
         const httpException = exception as HttpException;
         const statusCode = httpException.getStatus();
@@ -66,8 +68,6 @@ export class GlobalExceptionFilter implements ExceptionFilter {
           messageDebug: message,
         });
       }
-      case exception instanceof UnauthorizedException:
-        return new BackendException(EErrorCode.Unauthorized);
       default:
         return new BackendException(EErrorCode.Unknown, {
           messageDebug: exception.toString(),

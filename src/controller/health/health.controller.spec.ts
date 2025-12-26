@@ -2,6 +2,15 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { HealthController } from './health.controller';
 import { REDIS_TOKENS } from '../../common/redis/redis.tokens';
 import type { RedisService } from '../../common/redis/redis.service';
+
+jest.mock('../../common/clickhouse/clickhouse.service', () => {
+  return {
+    ClickhouseService: jest.fn().mockImplementation(() => ({
+      executeQuery: jest.fn().mockResolvedValue([{ '1': 1 }]),
+    })),
+  };
+});
+
 import { ClickhouseService } from '../../common/clickhouse/clickhouse.service';
 
 describe('HealthController', () => {

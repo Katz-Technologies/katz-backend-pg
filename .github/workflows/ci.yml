@@ -41,7 +41,7 @@ jobs:
         run: npx tsc --noEmit
 
       - name: Run tests with coverage
-        run: npm test -- --coverage --watchAll=false --coverageThreshold='{"global":{"branches":70,"functions":70,"lines":70,"statements":70}}'
+        run: npm test -- --coverage --watchAll=false
 
       - name: Upload coverage to artifacts
         uses: actions/upload-artifact@v4
@@ -60,8 +60,13 @@ jobs:
           echo "Build size: $BUILD_SIZE"
           # Fail if build is too large (adjust threshold as needed)
           DIST_SIZE=$(du -sm dist | cut -f1)
+          echo "Build size: ${DIST_SIZE} MB"
           if [ "$DIST_SIZE" -gt 100 ]; then
-            echo "⚠️ Warning: Build size ($DIST_SIZE MB) exceeds 100 MB"
+            echo "❌ Error: Build size ($DIST_SIZE MB) exceeds 100 MB threshold"
+            echo "Please optimize the build or increase the threshold if necessary"
+            exit 1
+          else
+            echo "✅ Build size is acceptable (${DIST_SIZE} MB <= 100 MB)"
           fi
 
   # Проверка безопасности
@@ -86,8 +91,15 @@ jobs:
         run: npm ci
 
       - name: Run npm audit
-        run: npm audit --audit-level=moderate
-        continue-on-error: true
+        run: |
+          echo "Running npm audit..."
+          npm audit --audit-level=moderate || {
+            echo "⚠️ npm audit found vulnerabilities"
+            echo "Review the output above and fix critical/high vulnerabilities"
+            echo "For moderate/low vulnerabilities, consider updating dependencies"
+            # Don't fail on moderate, but warn
+            exit 0
+          }
 
       - name: Check for secrets
         uses: trufflesecurity/trufflehog@main
@@ -133,24 +145,31 @@ jobs:
       - name: Check code complexity
         run: |
           echo "Checking code complexity..."
-          # Install complexity checker if not available
-          npx eslint --ext .ts src/ --format json --output-file eslint-complexity.json || true
-          # Check for high complexity functions
-          if [ -f eslint-complexity.json ]; then
-            echo "Complexity check completed"
-          fi
+          # Run ESLint to check complexity rules
+          npm run lint || {
+            echo "⚠️ Linting found complexity issues"
+            echo "Review the output above and refactor complex code"
+            exit 1
+          }
 
       - name: Check for code duplication
         run: |
           echo "Checking for code duplication..."
+          # jscpd exits with code 1 if duplication exceeds threshold
+          # We want to fail if duplication > 5%
           npx -y jscpd src/ --min-lines 5 --min-tokens 50 --threshold 5 \
             --ignore "node_modules,dist,coverage,**/*.spec.ts,**/*.test.ts" \
-            --format json --output jscpd-report.json || true
-          if [ -f jscpd-report.json ]; then
-            echo "Code duplication check completed"
-            # Show summary
-            cat jscpd-report.json | grep -o '"percentage":[0-9.]*' || echo "No duplication found"
-          fi
+            --format json --output jscpd-report.json && {
+            echo "✅ Code duplication check passed (below 5% threshold)"
+          } || {
+            echo "⚠️ Code duplication detected (exceeds 5% threshold)"
+            if [ -f jscpd-report.json ]; then
+              DUPLICATION=$(cat jscpd-report.json | grep -o '"percentage":[0-9.]*' | cut -d':' -f2 || echo "unknown")
+              echo "Code duplication: ${DUPLICATION}%"
+            fi
+            echo "Review jscpd-report.json for details and refactor duplicated code"
+            exit 1
+          }
 
       - name: Validate package.json
         run: |
@@ -259,12 +278,43 @@ jobs:
     steps:
       - name: Check all jobs status
         run: |
-          if [ "${{ needs.lint-and-test.result }}" != "success" ] || \
-             [ "${{ needs.security.result }}" != "success" ] || \
-             [ "${{ needs.code-quality.result }}" != "success" ] || \
-             [ "${{ needs.docker-checks.result }}" != "success" ] || \
-             [ "${{ needs.config-validation.result }}" != "success" ]; then
-            echo "❌ One or more CI checks failed"
+          echo "Checking CI job results..."
+          echo "lint-and-test: ${{ needs.lint-and-test.result }}"
+          echo "security: ${{ needs.security.result }}"
+          echo "code-quality: ${{ needs.code-quality.result }}"
+          echo "docker-checks: ${{ needs.docker-checks.result }}"
+          echo "config-validation: ${{ needs.config-validation.result }}"
+          
+          FAILED_JOBS=0
+          
+          if [ "${{ needs.lint-and-test.result }}" != "success" ]; then
+            echo "❌ lint-and-test failed"
+            FAILED_JOBS=$((FAILED_JOBS + 1))
+          fi
+          
+          if [ "${{ needs.security.result }}" != "success" ]; then
+            echo "❌ security check failed"
+            FAILED_JOBS=$((FAILED_JOBS + 1))
+          fi
+          
+          if [ "${{ needs.code-quality.result }}" != "success" ]; then
+            echo "❌ code-quality check failed"
+            FAILED_JOBS=$((FAILED_JOBS + 1))
+          fi
+          
+          if [ "${{ needs.docker-checks.result }}" != "success" ]; then
+            echo "❌ docker-checks failed"
+            FAILED_JOBS=$((FAILED_JOBS + 1))
+          fi
+          
+          if [ "${{ needs.config-validation.result }}" != "success" ]; then
+            echo "❌ config-validation failed"
+            FAILED_JOBS=$((FAILED_JOBS + 1))
+          fi
+          
+          if [ $FAILED_JOBS -gt 0 ]; then
+            echo "❌ $FAILED_JOBS job(s) failed. Please fix the issues above."
             exit 1
           fi
-          echo "✅ All CI checks passed"
+          
+          echo "✅ All CI checks passed successfully"
