@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { ProcessedMoneyFlowRow } from 'src/service/smart_money/type/processed-money-flow-row.type';
-import { BalancesData } from 'src/service/smart_money/type/balances-data.type';
-import { VolumesData } from 'src/service/smart_money/type/volumes-data.type';
-import { BalanceData } from 'src/service/smart_money/type/balance-data.type';
-import { VolumeData } from 'src/service/smart_money/type/volume-data.type';
+import { ProcessedMoneyFlowRow } from 'src/services/smart-money/type/processed-money-flow-row.type';
+import { BalancesData } from 'src/services/smart-money/type/balances-data.type';
+import { VolumesData } from 'src/services/smart-money/type/volumes-data.type';
+import { BalanceData } from 'src/services/smart-money/type/balance-data.type';
+import { VolumeData } from 'src/services/smart-money/type/volume-data.type';
 
 @Injectable()
 export class BalancesVolumesDomain {
@@ -25,7 +25,7 @@ export class BalancesVolumesDomain {
         if (!balances[row.fromAsset]) {
           balances[row.fromAsset] = [balanceData];
         } else {
-          balances[row.fromAsset].push(balanceData);
+          balances[row.fromAsset]!.push(balanceData);
         }
 
         const volumeData: VolumeData = {
@@ -37,7 +37,7 @@ export class BalancesVolumesDomain {
         if (!volumes[row.fromAsset]) {
           volumes[row.fromAsset] = [volumeData];
         } else {
-          volumes[row.fromAsset].push(volumeData);
+          volumes[row.fromAsset]!.push(volumeData);
         }
       }
 
@@ -51,7 +51,7 @@ export class BalancesVolumesDomain {
         if (!balances[row.toAsset]) {
           balances[row.toAsset] = [balanceData];
         } else {
-          balances[row.toAsset].push(balanceData);
+          balances[row.toAsset]!.push(balanceData);
         }
 
         const volumeData: VolumeData = {
@@ -63,7 +63,7 @@ export class BalancesVolumesDomain {
         if (!volumes[row.toAsset]) {
           volumes[row.toAsset] = [volumeData];
         } else {
-          volumes[row.toAsset].push(volumeData);
+          volumes[row.toAsset]!.push(volumeData);
         }
       }
     }

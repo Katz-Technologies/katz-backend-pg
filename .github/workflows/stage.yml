@@ -1,0 +1,235 @@
+name: Deploy to Staging
+
+on:
+  push:
+    branches:
+      - stage
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches:
+      - stage
+  workflow_dispatch:
+
+jobs:
+  check-dev-status:
+    name: Check dev branch status
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup GitHub CLI
+        run: |
+          type -p curl >/dev/null || (apt update && apt install curl -y)
+          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
+          && sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
+          && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+          && sudo apt update \
+          && sudo apt install gh -y
+
+      - name: Check if commit passed CI on dev
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "Checking if latest dev commit passed CI..."
+          
+          # For PR, get the head branch (should be dev)
+          if [ "${{ github.event.pull_request.head.ref }}" = "dev" ]; then
+            HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+            echo "PR head commit SHA: $HEAD_SHA"
+            
+            # Check CI status using GitHub API
+            CI_STATUS=$(gh api repos/${{ github.repository }}/commits/$HEAD_SHA/status --jq '.state' 2>/dev/null || echo "unknown")
+            
+            if [ "$CI_STATUS" = "success" ]; then
+              echo "✅ CI passed on dev branch for commit $HEAD_SHA"
+            elif [ "$CI_STATUS" = "pending" ]; then
+              echo "⚠️ CI is still running on dev branch for commit $HEAD_SHA"
+              echo "⚠️ Continuing anyway, but this should be investigated"
+            elif [ "$CI_STATUS" = "failure" ] || [ "$CI_STATUS" = "error" ]; then
+              echo "❌ CI failed on dev branch for commit $HEAD_SHA"
+              echo "❌ Deployment blocked: code must pass CI on dev before deploying to stage"
+              exit 1
+            else
+              echo "⚠️ Could not determine CI status (got: $CI_STATUS)"
+              echo "⚠️ Continuing, but this should be verified manually"
+            fi
+          else
+            echo "⚠️ PR is not from dev branch, skipping CI check"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Skip check for push events
+        if: github.event_name == 'push'
+        run: |
+          echo "✅ Push event to stage branch, skipping dev CI check"
+
+  test-and-deploy:
+    name: stage - test and deploy
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+    needs: [check-dev-status]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linter
+        run: npm run lint
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Run tests
+        run: npm test -- --watchAll=false
+
+      - name: Build application
+        run: npm run build
+
+      - name: Deploy to staging
+        if: github.event_name != 'pull_request'
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          script: |
+            set -e
+            
+            DEPLOY_PATH="${{ secrets.STAGING_DEPLOY_PATH || secrets.DEPLOY_PATH || '/home/ubuntu/katz-backend-stage' }}"
+            GIT_REPO="${{ secrets.GIT_REPO || github.repository }}"
+            GIT_BRANCH="stage"
+            ENV_FILE_CONTENT='${{ secrets.ENV_FILE }}'
+            
+            echo "=========================================="
+            echo "Начало деплоя на STAGING"
+            echo "=========================================="
+            echo "DEPLOY_PATH: $DEPLOY_PATH"
+            echo "GIT_REPO: $GIT_REPO"
+            echo "GIT_BRANCH: $GIT_BRANCH"
+            echo "Текущая директория: $(pwd)"
+            echo "Пользователь: $(whoami)"
+            echo ""
+            
+            # Определяем URL репозитория
+            # Используем GIT_TOKEN если указан, иначе SSH
+            if [ -n "${{ secrets.GIT_TOKEN }}" ]; then
+              GIT_URL="https://${{ secrets.GIT_TOKEN }}@github.com/$GIT_REPO.git"
+              echo "Используем GIT_TOKEN для клонирования"
+            else
+              # Используем SSH URL (требует настройки SSH ключа на сервере)
+              GIT_URL="git@github.com:$GIT_REPO.git"
+              echo "Используем SSH для клонирования (требует SSH ключ на сервере)"
+            fi
+            echo "GIT_URL: ${GIT_URL%%@*}" # Показываем без токена для безопасности
+            echo ""
+            
+            # Создаем директорию, если не существует
+            echo "Создаем директорию $DEPLOY_PATH..."
+            mkdir -p "$DEPLOY_PATH" || {
+              echo "❌ ОШИБКА: Не удалось создать директорию $DEPLOY_PATH"
+              echo "Проверьте права доступа пользователя $(whoami)"
+              exit 1
+            }
+            echo "✅ Директория создана или уже существует"
+            
+            echo "Переходим в директорию $DEPLOY_PATH..."
+            cd "$DEPLOY_PATH" || {
+              echo "❌ ОШИБКА: Не удалось перейти в директорию $DEPLOY_PATH"
+              exit 1
+            }
+            echo "✅ Текущая директория: $(pwd)"
+            echo ""
+            
+            # Клонируем или обновляем репозиторий
+            if [ -d ".git" ]; then
+              echo "Обновляем репозиторий..."
+              # Проверяем текущий remote URL и обновляем если нужно
+              CURRENT_URL=$(git remote get-url origin 2>/dev/null || echo "")
+              if [ "$CURRENT_URL" != "$GIT_URL" ]; then
+                echo "Обновляем remote URL..."
+                git remote set-url origin "$GIT_URL"
+              fi
+              git fetch origin || {
+                echo "❌ ОШИБКА: Не удалось выполнить git fetch"
+                echo "Проверьте SSH ключ или GIT_TOKEN"
+                exit 1
+              }
+              git reset --hard origin/$GIT_BRANCH || {
+                echo "❌ ОШИБКА: Не удалось выполнить git reset"
+                exit 1
+              }
+              git clean -fd
+              echo "✅ Репозиторий обновлен"
+            else
+              echo "Клонируем репозиторий..."
+              git clone -b $GIT_BRANCH $GIT_URL . || {
+                echo "❌ ОШИБКА: Не удалось клонировать репозиторий"
+                echo "Возможные причины:"
+                echo "  1. Нет SSH ключа на сервере (если используется SSH)"
+                echo "  2. Неверный GIT_TOKEN (если используется токен)"
+                echo "  3. Нет доступа к репозиторию"
+                echo "  4. Неверный GIT_REPO: $GIT_REPO"
+                exit 1
+              }
+              echo "✅ Репозиторий клонирован"
+            fi
+            echo ""
+            
+            # Создаем или обновляем .env файл из секрета
+            echo "Создаем/обновляем .env файл..."
+            if [ -n "$ENV_FILE_CONTENT" ]; then
+              echo "$ENV_FILE_CONTENT" > .env
+              echo "✅ Файл .env создан из секрета ENV_FILE"
+            elif [ -f ".env" ]; then
+              echo "✅ Файл .env уже существует на сервере (используется существующий)"
+            else
+              echo "⚠️ ВНИМАНИЕ: Файл .env не найден и секрет ENV_FILE не установлен!"
+              echo "Добавьте секрет ENV_FILE в GitHub Secrets для environment 'staging'"
+              echo "Или создайте файл .env вручную на сервере в директории $DEPLOY_PATH"
+              exit 1
+            fi
+            echo ""
+            
+            # Останавливаем и удаляем старое приложение
+            echo "Останавливаем и удаляем старое приложение..."
+            docker compose stop katz-backend 2>/dev/null || true
+            docker compose rm -f katz-backend 2>/dev/null || true
+            # Дополнительная проверка - удаляем контейнер напрямую, если он все еще существует
+            docker rm -f katz-backend 2>/dev/null || true
+            
+            # Собираем и запускаем приложение
+            echo "Собираем и запускаем приложение..."
+            docker compose up -d --build --no-deps katz-backend
+            
+            # Обновляем Redis только если его конфигурация изменилась
+            # Docker Compose сам определит, нужно ли пересоздавать контейнер
+            echo "Проверяем конфигурацию Redis..."
+            docker compose up -d redis
+            
+            # Показываем статус
+            echo "Статус контейнеров:"
+            docker compose ps
+            
+            # Очищаем неиспользуемые образы (опционально)
+            echo "Очищаем неиспользуемые образы..."
+            docker image prune -f || true
+            
+            echo ""
+            echo "=========================================="
+            echo "✅ Деплой на STAGING завершен"
+            echo "=========================================="
+

@@ -5,7 +5,7 @@ import { BackendException } from './backend.exception';
 import { EErrorCode } from './enums/error-code.enum';
 
 export class ValidateException extends BackendException {
-  constructor(private readonly validationErrors: ValidationError[]) {
+  constructor(validationErrors: ValidationError[]) {
     super(EErrorCode.Validate, {
       httpCode: HttpStatus.BAD_REQUEST,
       messageDebug: 'Validation error',
@@ -13,12 +13,14 @@ export class ValidateException extends BackendException {
     });
   }
 
-  static getError(validationErrors: ValidationError[]) {
-    return validationErrors.reduce(
+  static getError(
+    validationErrors: ValidationError[],
+  ): Record<string, unknown> {
+    return validationErrors.reduce<Record<string, unknown>>(
       (constraints, err) =>
         Object.assign(
           constraints,
-          err.constraints || ValidateException.getError(err.children!),
+          err.constraints || ValidateException.getError(err.children || []),
         ),
       {},
     );

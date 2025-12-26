@@ -2,11 +2,11 @@ import { IsNumber, IsOptional, IsPositive, IsString } from 'class-validator';
 
 export class ReqTokenHistoryDto {
   @IsString()
-  asset: string;
+  asset!: string;
 
   @IsNumber()
   @IsPositive()
-  limit: number;
+  limit!: number;
 
   @IsNumber()
   @IsOptional()

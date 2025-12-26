@@ -1,0 +1,33 @@
+# CODEOWNERS файл для автоматического назначения reviewers
+# Этот файл определяет, кто должен review изменения в определенных файлах/директориях
+
+# Глобальные владельцы - все файлы требуют их approval
+* @Froloveee3
+
+# Критичные файлы CI/CD требуют дополнительного review
+/.github/workflows/ @Froloveee3
+/.github/workflows/*.yml @Froloveee3
+/docker-compose.yml @Froloveee3
+/Dockerfile @Froloveee3
+
+# Конфигурация безопасности
+/.github/ @Froloveee3
+**/*secret* @Froloveee3
+**/*.env.example @Froloveee3
+
+# Конфигурация проекта
+/package.json @Froloveee3
+/package-lock.json @Froloveee3
+/tsconfig.json @Froloveee3
+/nest-cli.json @Froloveee3
+
+# Документация
+/README.md @Froloveee3
+/TODO.md @Froloveee3
+/.github/*.md @Froloveee3
+
+# Критичные модули
+/src/common/exception/ @Froloveee3
+/src/common/config/ @Froloveee3
+/src/main.ts @Froloveee3
+

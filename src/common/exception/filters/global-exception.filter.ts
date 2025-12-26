@@ -16,7 +16,7 @@ import type { HttpMethod } from '../types/http-method.type';
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(GlobalExceptionFilter.name);
-  catch(exception: BackendException | Error, host: ArgumentsHost): any {
+  catch(exception: BackendException | Error, host: ArgumentsHost): void {
     const ctx: HttpArgumentsHost = host.switchToHttp();
     const response: Response = ctx.getResponse<Response>();
     const request: Request = ctx.getRequest<Request>();
@@ -53,13 +53,21 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     switch (true) {
       case exception instanceof BackendException:
         return <BackendException>exception;
-      case exception instanceof HttpException:
-        return new BackendException(EErrorCode.Validate, {
-          httpCode: (exception as any).statusCode,
-          messageDebug: (exception as any).response.message,
-        });
       case exception instanceof UnauthorizedException:
         return new BackendException(EErrorCode.Unauthorized);
+      case exception instanceof HttpException: {
+        const httpException = exception as HttpException;
+        const statusCode = httpException.getStatus();
+        const response = httpException.getResponse();
+        const message =
+          typeof response === 'string'
+            ? response
+            : (response as { message?: string })?.message || 'Validation error';
+        return new BackendException(EErrorCode.Validate, {
+          httpCode: statusCode,
+          messageDebug: message,
+        });
+      }
       default:
         return new BackendException(EErrorCode.Unknown, {
           messageDebug: exception.toString(),

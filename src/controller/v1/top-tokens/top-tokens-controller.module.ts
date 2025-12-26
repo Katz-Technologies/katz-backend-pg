@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TopTokensController } from './top-tokens.controller';
-import { IconsCacheModule } from 'src/service/cron/icons-cache.module';
-import { CronModule } from 'src/service/cron/cron.module';
+import { IconsCacheModule } from 'src/services/icons/icons-cache.module';
+import { CronModule } from 'src/jobs/cron.module';
 
 @Module({
   controllers: [TopTokensController],

@@ -1,11 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DateTime } from 'luxon';
-import { MoneyFlowRow } from 'src/service/smart_money/interface/money-flow-row.interface';
+import { MoneyFlowRow } from 'src/services/smart-money/interface/money-flow-row.interface';
 import {
   TokenVolumeCharts,
   VolumeChartPoint,
-} from 'src/service/smart_money/type/token-summary.type';
-import { BalanceData } from 'src/service/smart_money/type/balance-data.type';
+} from 'src/services/smart-money/type/token-summary.type';
+import { BalanceData } from 'src/services/smart-money/type/balance-data.type';
 
 export interface TokenTradersCharts {
   hour: VolumeChartPoint[];
@@ -127,7 +127,12 @@ export class ChartDomain {
         month: Map<number, Set<string>>;
       }
     >,
-  ) {
+  ): {
+    hour: Map<number, Set<string>>;
+    day: Map<number, Set<string>>;
+    week: Map<number, Set<string>>;
+    month: Map<number, Set<string>>;
+  } {
     if (!tradersDataByInterval[token]) {
       tradersDataByInterval[token] = {
         hour: new Map(),
@@ -146,53 +151,53 @@ export class ChartDomain {
     nowSeconds: number,
   ): void {
     const timeDiff = nowSeconds - timestampSeconds;
-    const HOUR_INTERVAL = this.getHourInterval();
-    const DAY_INTERVAL = this.getDayInterval();
-    const WEEK_INTERVAL = this.getWeekInterval();
-    const MONTH_INTERVAL = this.getMonthInterval();
 
-    // Обрабатываем транзакции за последний час (от 0 до 3600 секунд назад включительно)
-    // timeDiff = 0 означает текущий момент, timeDiff = 3600 означает час назад
-    if (timeDiff >= 0 && timeDiff <= this.HOUR_SECONDS) {
-      let hourIndex = Math.floor(timeDiff / HOUR_INTERVAL);
-      // hourIndex может быть от 0 до 60 (61 минута), но нам нужно только 0-59
-      // hourIndex = 0: текущая минута, hourIndex = 60: ровно час назад (минута 0)
-      if (hourIndex >= 60) hourIndex = 59;
-      if (hourIndex >= 0 && hourIndex < 60) {
-        // arrayIndex = 59 означает текущую минуту (timeDiff близко к 0, hourIndex = 0)
-        // arrayIndex = 0 означает минуту 0 (60 минут назад, timeDiff = 3600, hourIndex = 60 → 59)
-        const arrayIndex = 59 - hourIndex;
-        charts.hour[arrayIndex].value += volume;
-      }
-    }
+    this.addVolumeToSingleInterval(
+      charts.hour,
+      timeDiff,
+      this.HOUR_SECONDS,
+      this.getHourInterval(),
+      volume,
+    );
+    this.addVolumeToSingleInterval(
+      charts.day,
+      timeDiff,
+      this.DAY_SECONDS,
+      this.getDayInterval(),
+      volume,
+    );
+    this.addVolumeToSingleInterval(
+      charts.week,
+      timeDiff,
+      this.WEEK_SECONDS,
+      this.getWeekInterval(),
+      volume,
+    );
+    this.addVolumeToSingleInterval(
+      charts.month,
+      timeDiff,
+      this.MONTH_SECONDS,
+      this.getMonthInterval(),
+      volume,
+    );
+  }
 
-    // Обрабатываем транзакции за последний день (от 0 до 86400 секунд назад включительно)
-    if (timeDiff >= 0 && timeDiff <= this.DAY_SECONDS) {
-      let dayIndex = Math.floor(timeDiff / DAY_INTERVAL);
-      if (dayIndex >= 60) dayIndex = 59;
-      if (dayIndex >= 0 && dayIndex < 60) {
-        const arrayIndex = 59 - dayIndex;
-        charts.day[arrayIndex].value += volume;
-      }
-    }
-
-    // Обрабатываем транзакции за последнюю неделю (от 0 до 604800 секунд назад включительно)
-    if (timeDiff >= 0 && timeDiff <= this.WEEK_SECONDS) {
-      let weekIndex = Math.floor(timeDiff / WEEK_INTERVAL);
-      if (weekIndex >= 60) weekIndex = 59;
-      if (weekIndex >= 0 && weekIndex < 60) {
-        const arrayIndex = 59 - weekIndex;
-        charts.week[arrayIndex].value += volume;
-      }
-    }
-
-    // Обрабатываем транзакции за последний месяц (от 0 до 2592000 секунд назад включительно)
-    if (timeDiff >= 0 && timeDiff <= this.MONTH_SECONDS) {
-      let monthIndex = Math.floor(timeDiff / MONTH_INTERVAL);
-      if (monthIndex >= 60) monthIndex = 59;
-      if (monthIndex >= 0 && monthIndex < 60) {
-        const arrayIndex = 59 - monthIndex;
-        charts.month[arrayIndex].value += volume;
+  private addVolumeToSingleInterval(
+    chartArray: VolumeChartPoint[],
+    timeDiff: number,
+    maxSeconds: number,
+    interval: number,
+    volume: number,
+  ): void {
+    if (timeDiff >= 0 && timeDiff <= maxSeconds) {
+      let index = Math.floor(timeDiff / interval);
+      if (index >= 60) index = 59;
+      if (index >= 0 && index < 60) {
+        const arrayIndex = 59 - index;
+        const chartPoint = chartArray[arrayIndex];
+        if (chartPoint) {
+          chartPoint.value += volume;
+        }
       }
     }
   }
@@ -207,116 +212,63 @@ export class ChartDomain {
     address: string,
     timeDiff: number,
   ): void {
-    const HOUR_INTERVAL = this.getHourInterval();
-    const DAY_INTERVAL = this.getDayInterval();
-    const WEEK_INTERVAL = this.getWeekInterval();
-    const MONTH_INTERVAL = this.getMonthInterval();
+    this.addTraderToSingleInterval(
+      tokenData.hour,
+      address,
+      timeDiff,
+      this.HOUR_SECONDS,
+      this.getHourInterval(),
+    );
+    this.addTraderToSingleInterval(
+      tokenData.day,
+      address,
+      timeDiff,
+      this.DAY_SECONDS,
+      this.getDayInterval(),
+    );
+    this.addTraderToSingleInterval(
+      tokenData.week,
+      address,
+      timeDiff,
+      this.WEEK_SECONDS,
+      this.getWeekInterval(),
+    );
+    this.addTraderToSingleInterval(
+      tokenData.month,
+      address,
+      timeDiff,
+      this.MONTH_SECONDS,
+      this.getMonthInterval(),
+    );
+  }
 
-    // Обрабатываем транзакции за последний час (от 0 до 3600 секунд назад включительно)
-    if (timeDiff >= 0 && timeDiff <= this.HOUR_SECONDS) {
-      let hourIndex = Math.floor(timeDiff / HOUR_INTERVAL);
-      if (hourIndex >= 60) hourIndex = 59;
-      if (hourIndex >= 0 && hourIndex < 60) {
-        const arrayIndex = 59 - hourIndex;
-        if (!tokenData.hour.has(arrayIndex)) {
-          tokenData.hour.set(arrayIndex, new Set());
+  private addTraderToSingleInterval(
+    intervalMap: Map<number, Set<string>>,
+    address: string,
+    timeDiff: number,
+    maxSeconds: number,
+    interval: number,
+  ): void {
+    if (timeDiff >= 0 && timeDiff <= maxSeconds) {
+      let index = Math.floor(timeDiff / interval);
+      if (index >= 60) index = 59;
+      if (index >= 0 && index < 60) {
+        const arrayIndex = 59 - index;
+        if (!intervalMap.has(arrayIndex)) {
+          intervalMap.set(arrayIndex, new Set());
         }
-        tokenData.hour.get(arrayIndex)!.add(address);
-      }
-    }
-
-    // Обрабатываем транзакции за последний день (от 0 до 86400 секунд назад включительно)
-    if (timeDiff >= 0 && timeDiff <= this.DAY_SECONDS) {
-      let dayIndex = Math.floor(timeDiff / DAY_INTERVAL);
-      if (dayIndex >= 60) dayIndex = 59;
-      if (dayIndex >= 0 && dayIndex < 60) {
-        const arrayIndex = 59 - dayIndex;
-        if (!tokenData.day.has(arrayIndex)) {
-          tokenData.day.set(arrayIndex, new Set());
-        }
-        tokenData.day.get(arrayIndex)!.add(address);
-      }
-    }
-
-    // Обрабатываем транзакции за последнюю неделю (от 0 до 604800 секунд назад включительно)
-    if (timeDiff >= 0 && timeDiff <= this.WEEK_SECONDS) {
-      let weekIndex = Math.floor(timeDiff / WEEK_INTERVAL);
-      if (weekIndex >= 60) weekIndex = 59;
-      if (weekIndex >= 0 && weekIndex < 60) {
-        const arrayIndex = 59 - weekIndex;
-        if (!tokenData.week.has(arrayIndex)) {
-          tokenData.week.set(arrayIndex, new Set());
-        }
-        tokenData.week.get(arrayIndex)!.add(address);
-      }
-    }
-
-    // Обрабатываем транзакции за последний месяц (от 0 до 2592000 секунд назад включительно)
-    if (timeDiff >= 0 && timeDiff <= this.MONTH_SECONDS) {
-      let monthIndex = Math.floor(timeDiff / MONTH_INTERVAL);
-      if (monthIndex >= 60) monthIndex = 59;
-      if (monthIndex >= 0 && monthIndex < 60) {
-        const arrayIndex = 59 - monthIndex;
-        if (!tokenData.month.has(arrayIndex)) {
-          tokenData.month.set(arrayIndex, new Set());
-        }
-        tokenData.month.get(arrayIndex)!.add(address);
+        intervalMap.get(arrayIndex)!.add(address);
       }
     }
   }
 
   buildTokenCharts(moneyFlows: MoneyFlowRow[]): TokenChartsData {
-    // const now = DateTime.fromISO('2025-11-05T06:00:00Z', { zone: 'utc' });
-    //Как установить 0 таймзону?
     const now = DateTime.now();
     const nowSeconds = now.toSeconds();
 
-    if (moneyFlows.length > 0) {
-      const firstFlow = moneyFlows[0];
-      const lastFlow = moneyFlows[moneyFlows.length - 1];
-
-      // Парсим даты с поддержкой разных форматов
-      let firstDate = DateTime.fromISO(firstFlow.close_time, { zone: 'utc' });
-      if (!firstDate.isValid) {
-        firstDate = DateTime.fromSQL(firstFlow.close_time, { zone: 'utc' });
-      }
-      if (!firstDate.isValid) {
-        firstDate = DateTime.fromFormat(
-          firstFlow.close_time,
-          'yyyy-MM-dd HH:mm:ss.SSS',
-          { zone: 'utc' },
-        );
-      }
-      if (!firstDate.isValid) {
-        firstDate = DateTime.fromFormat(
-          firstFlow.close_time,
-          'yyyy-MM-dd HH:mm:ss',
-          { zone: 'utc' },
-        );
-      }
-
-      let lastDate = DateTime.fromISO(lastFlow.close_time, { zone: 'utc' });
-      if (!lastDate.isValid) {
-        lastDate = DateTime.fromSQL(lastFlow.close_time, { zone: 'utc' });
-      }
-      if (!lastDate.isValid) {
-        lastDate = DateTime.fromFormat(
-          lastFlow.close_time,
-          'yyyy-MM-dd HH:mm:ss.SSS',
-          { zone: 'utc' },
-        );
-      }
-      if (!lastDate.isValid) {
-        lastDate = DateTime.fromFormat(
-          lastFlow.close_time,
-          'yyyy-MM-dd HH:mm:ss',
-          { zone: 'utc' },
-        );
-      }
-    }
+    this.parseDateRange(moneyFlows);
 
     const volumeCharts: Record<string, TokenVolumeCharts> = {};
-
     const tradersDataByInterval: Record<
       string,
       {
@@ -327,169 +279,266 @@ export class ChartDomain {
       }
     > = {};
 
-    moneyFlows.forEach((moneyFlow) => {
-      const {
-        from_asset,
-        to_asset,
-        from_amount,
-        to_amount,
-        from_address,
-        to_address,
-        close_time,
-      } = moneyFlow;
+    this.processMoneyFlows(
+      moneyFlows,
+      volumeCharts,
+      tradersDataByInterval,
+      nowSeconds,
+    );
 
-      // Логирование для отладки токена XLM.r44CR5cYKVyzuJpFUtF2ZRDizVZpvtkc4C
-      if (
-        from_asset === 'XLM.r44CR5cYKVyzuJpFUtF2ZRDizVZpvtkc4C' ||
-        to_asset === 'XLM.r44CR5cYKVyzuJpFUtF2ZRDizVZpvtkc4C'
-      ) {
-        this.logger.debug(
-          `[XLM] Processing moneyFlow: from_asset=${from_asset}, to_asset=${to_asset}, from_address=${from_address}, to_address=${to_address}, close_time=${close_time}`,
-        );
-      }
-
-      let timestampSeconds: number;
-      try {
-        let closeTimeDate = DateTime.fromISO(close_time, { zone: 'utc' });
-        if (!closeTimeDate.isValid) {
-          closeTimeDate = DateTime.fromSQL(close_time, { zone: 'utc' });
-        }
-        if (!closeTimeDate.isValid) {
-          closeTimeDate = DateTime.fromFormat(
-            close_time,
-            'yyyy-MM-dd HH:mm:ss.SSS',
-            { zone: 'utc' },
-          );
-        }
-        if (!closeTimeDate.isValid) {
-          closeTimeDate = DateTime.fromFormat(
-            close_time,
-            'yyyy-MM-dd HH:mm:ss',
-            { zone: 'utc' },
-          );
-        }
-
-        timestampSeconds = closeTimeDate.toSeconds();
-      } catch (error) {
-        this.logger.log('Error parsing date:', close_time, error);
-        return;
-      }
-
-      const timeDiff = nowSeconds - timestampSeconds;
-
-      if (timeDiff < 0 || timeDiff > this.MONTH_SECONDS) {
-        return;
-      }
-
-      if (from_asset) {
-        const volumeChartsForToken = this.initializeVolumeCharts(
-          from_asset,
-          volumeCharts,
-          nowSeconds,
-        );
-
-        const volume = Math.abs(parseFloat(from_amount) || 0);
-        if (volume > 0) {
-          this.addVolumeToInterval(
-            volumeChartsForToken,
-            timestampSeconds,
-            volume,
-            nowSeconds,
-          );
-        }
-
-        if (from_address) {
-          const tradersData = this.getOrCreateTradersData(
-            from_asset,
-            tradersDataByInterval,
-          );
-          this.addTradersToInterval(tradersData, from_address, timeDiff);
-        }
-      }
-
-      if (to_asset) {
-        const volumeChartsForToken = this.initializeVolumeCharts(
-          to_asset,
-          volumeCharts,
-          nowSeconds,
-        );
-        const volume = Math.abs(parseFloat(to_amount) || 0);
-        if (volume > 0) {
-          this.addVolumeToInterval(
-            volumeChartsForToken,
-            timestampSeconds,
-            volume,
-            nowSeconds,
-          );
-        }
-
-        if (to_address) {
-          const tradersData = this.getOrCreateTradersData(
-            to_asset,
-            tradersDataByInterval,
-          );
-          this.addTradersToInterval(tradersData, to_address, timeDiff);
-        }
-      }
-    });
-
-    const tradersCharts: Record<string, TokenTradersCharts> = {};
-    for (const token in tradersDataByInterval) {
-      const tokenData = tradersDataByInterval[token];
-      const hour: { timestamp: number; value: number }[] = [];
-      const day: { timestamp: number; value: number }[] = [];
-      const week: { timestamp: number; value: number }[] = [];
-      const month: { timestamp: number; value: number }[] = [];
-
-      const HOUR_INTERVAL = this.getHourInterval();
-      const DAY_INTERVAL = this.getDayInterval();
-      const WEEK_INTERVAL = this.getWeekInterval();
-      const MONTH_INTERVAL = this.getMonthInterval();
-
-      for (let i = 1; i <= 60; i++) {
-        // i = 0: минута 0 (60 минут назад), i = 59: минута 59 (1 минута назад)
-        const hourTimestamp = nowSeconds - (60 - i) * HOUR_INTERVAL;
-        const dayTimestamp = nowSeconds - (60 - i) * DAY_INTERVAL;
-        const weekTimestamp = nowSeconds - (60 - i) * WEEK_INTERVAL;
-        const monthTimestamp = nowSeconds - (60 - i) * MONTH_INTERVAL;
-
-        hour.push({ timestamp: hourTimestamp * 1000, value: 0 });
-        day.push({ timestamp: dayTimestamp * 1000, value: 0 });
-        week.push({ timestamp: weekTimestamp * 1000, value: 0 });
-        month.push({ timestamp: monthTimestamp * 1000, value: 0 });
-      }
-
-      tokenData.hour.forEach((addresses, arrayIndex) => {
-        if (arrayIndex >= 0 && arrayIndex < 60) {
-          hour[arrayIndex].value = addresses.size;
-        }
-      });
-
-      tokenData.day.forEach((addresses, arrayIndex) => {
-        if (arrayIndex >= 0 && arrayIndex < 60) {
-          day[arrayIndex].value = addresses.size;
-        }
-      });
-
-      tokenData.week.forEach((addresses, arrayIndex) => {
-        if (arrayIndex >= 0 && arrayIndex < 60) {
-          week[arrayIndex].value = addresses.size;
-        }
-      });
-
-      tokenData.month.forEach((addresses, arrayIndex) => {
-        if (arrayIndex >= 0 && arrayIndex < 60) {
-          month[arrayIndex].value = addresses.size;
-        }
-      });
-
-      tradersCharts[token] = { hour, day, week, month };
-    }
+    const tradersCharts = this.buildTradersCharts(
+      tradersDataByInterval,
+      nowSeconds,
+    );
 
     return {
       volumes: volumeCharts,
       traders: tradersCharts,
     };
+  }
+
+  private parseDateRange(moneyFlows: MoneyFlowRow[]): void {
+    if (moneyFlows.length === 0) return;
+
+    const firstFlow = moneyFlows[0];
+    const lastFlow = moneyFlows[moneyFlows.length - 1];
+
+    if (firstFlow) {
+      this.parseDateTimeString(firstFlow.close_time);
+    }
+    if (lastFlow) {
+      this.parseDateTimeString(lastFlow.close_time);
+    }
+  }
+
+  private parseDateTimeString(dateString: string): DateTime {
+    let date = DateTime.fromISO(dateString, { zone: 'utc' });
+    if (!date.isValid) {
+      date = DateTime.fromSQL(dateString, { zone: 'utc' });
+    }
+    if (!date.isValid) {
+      date = DateTime.fromFormat(dateString, 'yyyy-MM-dd HH:mm:ss.SSS', {
+        zone: 'utc',
+      });
+    }
+    if (!date.isValid) {
+      date = DateTime.fromFormat(dateString, 'yyyy-MM-dd HH:mm:ss', {
+        zone: 'utc',
+      });
+    }
+    return date;
+  }
+
+  private processMoneyFlows(
+    moneyFlows: MoneyFlowRow[],
+    volumeCharts: Record<string, TokenVolumeCharts>,
+    tradersDataByInterval: Record<
+      string,
+      {
+        hour: Map<number, Set<string>>;
+        day: Map<number, Set<string>>;
+        week: Map<number, Set<string>>;
+        month: Map<number, Set<string>>;
+      }
+    >,
+    nowSeconds: number,
+  ): void {
+    moneyFlows.forEach((moneyFlow) => {
+      this.processMoneyFlow(
+        moneyFlow,
+        volumeCharts,
+        tradersDataByInterval,
+        nowSeconds,
+      );
+    });
+  }
+
+  private processMoneyFlow(
+    moneyFlow: MoneyFlowRow,
+    volumeCharts: Record<string, TokenVolumeCharts>,
+    tradersDataByInterval: Record<
+      string,
+      {
+        hour: Map<number, Set<string>>;
+        day: Map<number, Set<string>>;
+        week: Map<number, Set<string>>;
+        month: Map<number, Set<string>>;
+      }
+    >,
+    nowSeconds: number,
+  ): void {
+    const {
+      from_asset,
+      to_asset,
+      from_amount,
+      to_amount,
+      from_address,
+      to_address,
+      close_time,
+    } = moneyFlow;
+
+    if (
+      from_asset === 'XLM.r44CR5cYKVyzuJpFUtF2ZRDizVZpvtkc4C' ||
+      to_asset === 'XLM.r44CR5cYKVyzuJpFUtF2ZRDizVZpvtkc4C'
+    ) {
+      this.logger.debug(
+        `[XLM] Processing moneyFlow: from_asset=${from_asset}, to_asset=${to_asset}, from_address=${from_address}, to_address=${to_address}, close_time=${close_time}`,
+      );
+    }
+
+    const timestampSeconds = this.parseCloseTimeToSeconds(close_time);
+    if (!timestampSeconds) return;
+
+    const timeDiff = nowSeconds - timestampSeconds;
+    if (timeDiff < 0 || timeDiff > this.MONTH_SECONDS) return;
+
+    this.processAsset(
+      from_asset,
+      from_amount,
+      from_address,
+      volumeCharts,
+      tradersDataByInterval,
+      timestampSeconds,
+      timeDiff,
+      nowSeconds,
+    );
+
+    this.processAsset(
+      to_asset,
+      to_amount,
+      to_address,
+      volumeCharts,
+      tradersDataByInterval,
+      timestampSeconds,
+      timeDiff,
+      nowSeconds,
+    );
+  }
+
+  private parseCloseTimeToSeconds(closeTime: string): number | null {
+    try {
+      const dateTime = this.parseDateTimeString(closeTime);
+      return dateTime.isValid ? dateTime.toSeconds() : null;
+    } catch (error) {
+      this.logger.log('Error parsing date:', closeTime, error);
+      return null;
+    }
+  }
+
+  private processAsset(
+    asset: string | null,
+    amount: string | null,
+    address: string | null,
+    volumeCharts: Record<string, TokenVolumeCharts>,
+    tradersDataByInterval: Record<
+      string,
+      {
+        hour: Map<number, Set<string>>;
+        day: Map<number, Set<string>>;
+        week: Map<number, Set<string>>;
+        month: Map<number, Set<string>>;
+      }
+    >,
+    timestampSeconds: number,
+    timeDiff: number,
+    nowSeconds: number,
+  ): void {
+    if (!asset) return;
+
+    const volumeChartsForToken = this.initializeVolumeCharts(
+      asset,
+      volumeCharts,
+      nowSeconds,
+    );
+
+    const volume = Math.abs(parseFloat(amount || '0'));
+    if (volume > 0) {
+      this.addVolumeToInterval(
+        volumeChartsForToken,
+        timestampSeconds,
+        volume,
+        nowSeconds,
+      );
+    }
+
+    if (address) {
+      const tradersData = this.getOrCreateTradersData(
+        asset,
+        tradersDataByInterval,
+      );
+      this.addTradersToInterval(tradersData, address, timeDiff);
+    }
+  }
+
+  private buildTradersCharts(
+    tradersDataByInterval: Record<
+      string,
+      {
+        hour: Map<number, Set<string>>;
+        day: Map<number, Set<string>>;
+        week: Map<number, Set<string>>;
+        month: Map<number, Set<string>>;
+      }
+    >,
+    nowSeconds: number,
+  ): Record<string, TokenTradersCharts> {
+    const tradersCharts: Record<string, TokenTradersCharts> = {};
+
+    for (const token in tradersDataByInterval) {
+      const tokenData = tradersDataByInterval[token];
+      if (!tokenData) continue;
+
+      const charts = this.initializeTradersChartPoints(nowSeconds);
+
+      this.populateTradersChart(charts.hour, tokenData.hour);
+      this.populateTradersChart(charts.day, tokenData.day);
+      this.populateTradersChart(charts.week, tokenData.week);
+      this.populateTradersChart(charts.month, tokenData.month);
+
+      tradersCharts[token] = charts;
+    }
+
+    return tradersCharts;
+  }
+
+  private initializeTradersChartPoints(nowSeconds: number): TokenTradersCharts {
+    const hour: VolumeChartPoint[] = [];
+    const day: VolumeChartPoint[] = [];
+    const week: VolumeChartPoint[] = [];
+    const month: VolumeChartPoint[] = [];
+
+    const HOUR_INTERVAL = this.getHourInterval();
+    const DAY_INTERVAL = this.getDayInterval();
+    const WEEK_INTERVAL = this.getWeekInterval();
+    const MONTH_INTERVAL = this.getMonthInterval();
+
+    for (let i = 1; i <= 60; i++) {
+      const hourTimestamp = nowSeconds - (60 - i) * HOUR_INTERVAL;
+      const dayTimestamp = nowSeconds - (60 - i) * DAY_INTERVAL;
+      const weekTimestamp = nowSeconds - (60 - i) * WEEK_INTERVAL;
+      const monthTimestamp = nowSeconds - (60 - i) * MONTH_INTERVAL;
+
+      hour.push({ timestamp: hourTimestamp * 1000, value: 0 });
+      day.push({ timestamp: dayTimestamp * 1000, value: 0 });
+      week.push({ timestamp: weekTimestamp * 1000, value: 0 });
+      month.push({ timestamp: monthTimestamp * 1000, value: 0 });
+    }
+
+    return { hour, day, week, month };
+  }
+
+  private populateTradersChart(
+    chart: VolumeChartPoint[],
+    intervalMap: Map<number, Set<string>>,
+  ): void {
+    intervalMap.forEach((addresses, arrayIndex) => {
+      if (arrayIndex >= 0 && arrayIndex < 60) {
+        const chartPoint = chart[arrayIndex];
+        if (chartPoint) {
+          chartPoint.value = addresses.size;
+        }
+      }
+    });
   }
 
   buildTokenHoldersChartsFromBalances(
@@ -502,147 +551,212 @@ export class ChartDomain {
 
     for (const token in tokenBalances) {
       const addressBalances = tokenBalances[token];
-
-      // Инициализируем графики
-      const hour: VolumeChartPoint[] = [];
-      const day: VolumeChartPoint[] = [];
-      const week: VolumeChartPoint[] = [];
-      const month: VolumeChartPoint[] = [];
-
-      const HOUR_INTERVAL = this.getHourInterval();
-      const DAY_INTERVAL = this.getDayInterval();
-      const WEEK_INTERVAL = this.getWeekInterval();
-      const MONTH_INTERVAL = this.getMonthInterval();
-
-      // Создаем временные точки для каждого интервала
-      for (let i = 1; i <= 60; i++) {
-        const hourTimestamp = nowSeconds - (60 - i) * HOUR_INTERVAL;
-        const dayTimestamp = nowSeconds - (60 - i) * DAY_INTERVAL;
-        const weekTimestamp = nowSeconds - (60 - i) * WEEK_INTERVAL;
-        const monthTimestamp = nowSeconds - (60 - i) * MONTH_INTERVAL;
-
-        hour.push({ timestamp: hourTimestamp * 1000, value: 0 });
-        day.push({ timestamp: dayTimestamp * 1000, value: 0 });
-        week.push({ timestamp: weekTimestamp * 1000, value: 0 });
-        month.push({ timestamp: monthTimestamp * 1000, value: 0 });
+      if (addressBalances) {
+        holdersCharts[token] = this.buildTokenHoldersChart(
+          addressBalances,
+          nowSeconds,
+        );
       }
-
-      // Предварительно обрабатываем балансы для каждого адреса: сортируем и кэшируем парсинг closeTime
-      const processedBalances: Record<
-        string,
-        Array<{ balance: number; timeSeconds: number; inLedgerIndex: number }>
-      > = {};
-      for (const [address, balances] of Object.entries(addressBalances)) {
-        // Сортируем балансы один раз и кэшируем парсинг closeTime
-        const processed = balances
-          .map((b) => {
-            const dateTime = this.parseCloseTime(b.closeTime);
-
-            if (!dateTime.isValid) {
-              this.logger.warn(
-                `Failed to parse closeTime for balance: ${JSON.stringify(b.closeTime)}`,
-              );
-              return null;
-            }
-
-            return {
-              balance: b.balance,
-              timeSeconds: dateTime.toSeconds(),
-              inLedgerIndex: b.inLedgerIndex,
-            };
-          })
-          .filter(
-            (
-              p,
-            ): p is {
-              balance: number;
-              timeSeconds: number;
-              inLedgerIndex: number;
-            } => p !== null,
-          )
-          .sort((a, b) => {
-            if (a.timeSeconds !== b.timeSeconds)
-              return a.timeSeconds - b.timeSeconds;
-            return a.inLedgerIndex - b.inLedgerIndex;
-          });
-        processedBalances[address] = processed;
-      }
-
-      // Для каждого интервала определяем количество холдеров
-      for (let arrayIndex = 0; arrayIndex < 60; arrayIndex++) {
-        // Определяем временной диапазон для текущего интервала
-        // Для каждого интервала: от предыдущей точки до текущей
-        const hourStartTime =
-          arrayIndex === 0
-            ? nowSeconds - 60 * HOUR_INTERVAL
-            : nowSeconds - (60 - arrayIndex) * HOUR_INTERVAL;
-        const hourEndTime = nowSeconds - (60 - arrayIndex - 1) * HOUR_INTERVAL;
-
-        const dayStartTime =
-          arrayIndex === 0
-            ? nowSeconds - 60 * DAY_INTERVAL
-            : nowSeconds - (60 - arrayIndex) * DAY_INTERVAL;
-        const dayEndTime = nowSeconds - (60 - arrayIndex - 1) * DAY_INTERVAL;
-
-        const weekStartTime =
-          arrayIndex === 0
-            ? nowSeconds - 60 * WEEK_INTERVAL
-            : nowSeconds - (60 - arrayIndex) * WEEK_INTERVAL;
-        const weekEndTime = nowSeconds - (60 - arrayIndex - 1) * WEEK_INTERVAL;
-
-        const monthStartTime =
-          arrayIndex === 0
-            ? nowSeconds - 60 * MONTH_INTERVAL
-            : nowSeconds - (60 - arrayIndex) * MONTH_INTERVAL;
-        const monthEndTime =
-          nowSeconds - (60 - arrayIndex - 1) * MONTH_INTERVAL;
-
-        // Подсчитываем холдеров для каждого интервала
-        const hourHolders = new Set<string>();
-        const dayHolders = new Set<string>();
-        const weekHolders = new Set<string>();
-        const monthHolders = new Set<string>();
-
-        for (const [address, processed] of Object.entries(processedBalances)) {
-          // Проверяем, был ли у адреса положительный баланс в этом временном промежутке
-          // и не стал ли он нулевым до конца промежутка
-          const hourHasHolder = this.hasPositiveBalanceInRangeOptimized(
-            processed,
-            hourStartTime,
-            hourEndTime,
-          );
-          const dayHasHolder = this.hasPositiveBalanceInRangeOptimized(
-            processed,
-            dayStartTime,
-            dayEndTime,
-          );
-          const weekHasHolder = this.hasPositiveBalanceInRangeOptimized(
-            processed,
-            weekStartTime,
-            weekEndTime,
-          );
-          const monthHasHolder = this.hasPositiveBalanceInRangeOptimized(
-            processed,
-            monthStartTime,
-            monthEndTime,
-          );
-
-          if (hourHasHolder) hourHolders.add(address);
-          if (dayHasHolder) dayHolders.add(address);
-          if (weekHasHolder) weekHolders.add(address);
-          if (monthHasHolder) monthHolders.add(address);
-        }
-
-        hour[arrayIndex].value = hourHolders.size;
-        day[arrayIndex].value = dayHolders.size;
-        week[arrayIndex].value = weekHolders.size;
-        month[arrayIndex].value = monthHolders.size;
-      }
-
-      holdersCharts[token] = { hour, day, week, month };
     }
 
     return holdersCharts;
+  }
+
+  private buildTokenHoldersChart(
+    addressBalances: Record<string, BalanceData[]>,
+    nowSeconds: number,
+  ): TokenHoldersCharts {
+    const charts = this.initializeHoldersChartPoints(nowSeconds);
+    const processedBalances = this.processAddressBalances(addressBalances);
+    this.populateHoldersCharts(charts, processedBalances, nowSeconds);
+
+    return charts;
+  }
+
+  private initializeHoldersChartPoints(nowSeconds: number): TokenHoldersCharts {
+    const hour: VolumeChartPoint[] = [];
+    const day: VolumeChartPoint[] = [];
+    const week: VolumeChartPoint[] = [];
+    const month: VolumeChartPoint[] = [];
+
+    const HOUR_INTERVAL = this.getHourInterval();
+    const DAY_INTERVAL = this.getDayInterval();
+    const WEEK_INTERVAL = this.getWeekInterval();
+    const MONTH_INTERVAL = this.getMonthInterval();
+
+    for (let i = 1; i <= 60; i++) {
+      const hourTimestamp = nowSeconds - (60 - i) * HOUR_INTERVAL;
+      const dayTimestamp = nowSeconds - (60 - i) * DAY_INTERVAL;
+      const weekTimestamp = nowSeconds - (60 - i) * WEEK_INTERVAL;
+      const monthTimestamp = nowSeconds - (60 - i) * MONTH_INTERVAL;
+
+      hour.push({ timestamp: hourTimestamp * 1000, value: 0 });
+      day.push({ timestamp: dayTimestamp * 1000, value: 0 });
+      week.push({ timestamp: weekTimestamp * 1000, value: 0 });
+      month.push({ timestamp: monthTimestamp * 1000, value: 0 });
+    }
+
+    return { hour, day, week, month };
+  }
+
+  private processAddressBalances(
+    addressBalances: Record<string, BalanceData[]>,
+  ): Record<
+    string,
+    Array<{ balance: number; timeSeconds: number; inLedgerIndex: number }>
+  > {
+    const processedBalances: Record<
+      string,
+      Array<{ balance: number; timeSeconds: number; inLedgerIndex: number }>
+    > = {};
+
+    for (const [address, balances] of Object.entries(addressBalances)) {
+      processedBalances[address] = this.processBalanceData(balances);
+    }
+
+    return processedBalances;
+  }
+
+  private processBalanceData(
+    balances: BalanceData[],
+  ): Array<{ balance: number; timeSeconds: number; inLedgerIndex: number }> {
+    return balances
+      .map((b) => {
+        const dateTime = this.parseCloseTime(b.closeTime);
+
+        if (!dateTime.isValid) {
+          this.logger.warn(
+            `Failed to parse closeTime for balance: ${JSON.stringify(b.closeTime)}`,
+          );
+          return null;
+        }
+
+        return {
+          balance: b.balance,
+          timeSeconds: dateTime.toSeconds(),
+          inLedgerIndex: b.inLedgerIndex,
+        };
+      })
+      .filter(
+        (
+          p,
+        ): p is {
+          balance: number;
+          timeSeconds: number;
+          inLedgerIndex: number;
+        } => p !== null,
+      )
+      .sort((a, b) => {
+        if (a.timeSeconds !== b.timeSeconds)
+          return a.timeSeconds - b.timeSeconds;
+        return a.inLedgerIndex - b.inLedgerIndex;
+      });
+  }
+
+  private populateHoldersCharts(
+    charts: TokenHoldersCharts,
+    processedBalances: Record<
+      string,
+      Array<{ balance: number; timeSeconds: number; inLedgerIndex: number }>
+    >,
+    nowSeconds: number,
+  ): void {
+    const HOUR_INTERVAL = this.getHourInterval();
+    const DAY_INTERVAL = this.getDayInterval();
+    const WEEK_INTERVAL = this.getWeekInterval();
+    const MONTH_INTERVAL = this.getMonthInterval();
+
+    for (let arrayIndex = 0; arrayIndex < 60; arrayIndex++) {
+      const hourRange = this.getIntervalRange(
+        arrayIndex,
+        nowSeconds,
+        HOUR_INTERVAL,
+      );
+      const dayRange = this.getIntervalRange(
+        arrayIndex,
+        nowSeconds,
+        DAY_INTERVAL,
+      );
+      const weekRange = this.getIntervalRange(
+        arrayIndex,
+        nowSeconds,
+        WEEK_INTERVAL,
+      );
+      const monthRange = this.getIntervalRange(
+        arrayIndex,
+        nowSeconds,
+        MONTH_INTERVAL,
+      );
+
+      const hourPoint = charts.hour[arrayIndex];
+      const dayPoint = charts.day[arrayIndex];
+      const weekPoint = charts.week[arrayIndex];
+      const monthPoint = charts.month[arrayIndex];
+
+      if (hourPoint) {
+        hourPoint.value = this.countHoldersInRange(
+          processedBalances,
+          hourRange.start,
+          hourRange.end,
+        );
+      }
+      if (dayPoint) {
+        dayPoint.value = this.countHoldersInRange(
+          processedBalances,
+          dayRange.start,
+          dayRange.end,
+        );
+      }
+      if (weekPoint) {
+        weekPoint.value = this.countHoldersInRange(
+          processedBalances,
+          weekRange.start,
+          weekRange.end,
+        );
+      }
+      if (monthPoint) {
+        monthPoint.value = this.countHoldersInRange(
+          processedBalances,
+          monthRange.start,
+          monthRange.end,
+        );
+      }
+    }
+  }
+
+  private getIntervalRange(
+    arrayIndex: number,
+    nowSeconds: number,
+    interval: number,
+  ): { start: number; end: number } {
+    const startTime =
+      arrayIndex === 0
+        ? nowSeconds - 60 * interval
+        : nowSeconds - (60 - arrayIndex) * interval;
+    const endTime = nowSeconds - (60 - arrayIndex - 1) * interval;
+
+    return { start: startTime, end: endTime };
+  }
+
+  private countHoldersInRange(
+    processedBalances: Record<
+      string,
+      Array<{ balance: number; timeSeconds: number; inLedgerIndex: number }>
+    >,
+    startTime: number,
+    endTime: number,
+  ): number {
+    const holders = new Set<string>();
+
+    for (const [address, processed] of Object.entries(processedBalances)) {
+      if (
+        this.hasPositiveBalanceInRangeOptimized(processed, startTime, endTime)
+      ) {
+        holders.add(address);
+      }
+    }
+
+    return holders.size;
   }
 
   /**
@@ -662,7 +776,44 @@ export class ChartDomain {
       return false;
     }
 
-    // Находим последний баланс до начала диапазона или в начале диапазона
+    const balanceContext = this.findBalanceContext(
+      processedBalances,
+      startTimeSeconds,
+      endTimeSeconds,
+    );
+
+    if (!this.hasAnyPositiveBalance(balanceContext)) {
+      return false;
+    }
+
+    return this.checkHolderStatus(balanceContext, endTimeSeconds);
+  }
+
+  private findBalanceContext(
+    processedBalances: Array<{
+      balance: number;
+      timeSeconds: number;
+      inLedgerIndex: number;
+    }>,
+    startTimeSeconds: number,
+    endTimeSeconds: number,
+  ): {
+    lastBeforeStart: {
+      balance: number;
+      timeSeconds: number;
+      inLedgerIndex: number;
+    } | null;
+    balancesInRange: Array<{
+      balance: number;
+      timeSeconds: number;
+      inLedgerIndex: number;
+    }>;
+    firstAfterRange: {
+      balance: number;
+      timeSeconds: number;
+      inLedgerIndex: number;
+    } | null;
+  } {
     let lastBalanceBeforeOrAtStart: {
       balance: number;
       timeSeconds: number;
@@ -676,7 +827,6 @@ export class ChartDomain {
       }
     }
 
-    // Находим все балансы в диапазоне
     const balancesInRange: Array<{
       balance: number;
       timeSeconds: number;
@@ -693,7 +843,6 @@ export class ChartDomain {
       }
     }
 
-    // Находим первый баланс после диапазона
     let firstBalanceAfterRange: {
       balance: number;
       timeSeconds: number;
@@ -706,171 +855,85 @@ export class ChartDomain {
       }
     }
 
-    // Определяем баланс в начале диапазона
-    const balanceAtStart =
-      balancesInRange.length > 0
-        ? balancesInRange[0]
-        : lastBalanceBeforeOrAtStart;
-
-    // Определяем баланс в конце диапазона
-    const balanceAtEnd =
-      balancesInRange.length > 0
-        ? balancesInRange[balancesInRange.length - 1]
-        : lastBalanceBeforeOrAtStart;
-
-    // Проверяем, был ли положительный баланс в начале диапазона
-    const hadPositiveBalanceAtStart =
-      balanceAtStart && balanceAtStart.balance > 0;
-
-    // Проверяем, был ли хотя бы один положительный баланс в диапазоне
-    const hasPositiveInRange = balancesInRange.some((b) => b.balance > 0);
-
-    // Проверяем, был ли положительный баланс до начала диапазона
-    const hadPositiveBalanceBeforeStart =
-      lastBalanceBeforeOrAtStart && lastBalanceBeforeOrAtStart.balance > 0;
-
-    // Если не было положительного баланса ни в начале, ни в диапазоне, ни до начала
-    if (
-      !hadPositiveBalanceAtStart &&
-      !hasPositiveInRange &&
-      !hadPositiveBalanceBeforeStart
-    ) {
-      return false;
-    }
-
-    if (balanceAtEnd && balanceAtEnd.balance === 0) {
-      // Если был положительный баланс в начале диапазона или до начала, то адрес был холдером
-      if (
-        hadPositiveBalanceAtStart ||
-        hadPositiveBalanceBeforeStart ||
-        hasPositiveInRange
-      ) {
-        return true;
-      } else {
-        return false;
-      }
-    }
-
-    // Если есть баланс сразу после диапазона и он нулевой,
-    // то адрес перестал быть холдером до конца диапазона
-    if (firstBalanceAfterRange && firstBalanceAfterRange.balance === 0) {
-      // Если баланс стал нулевым сразу после диапазона (в пределах небольшого окна),
-      // считаем что он перестал быть холдером до конца диапазона
-      if (firstBalanceAfterRange.timeSeconds - endTimeSeconds < 300) {
-        return false;
-      }
-    }
-    return true;
+    return {
+      lastBeforeStart: lastBalanceBeforeOrAtStart,
+      balancesInRange,
+      firstAfterRange: firstBalanceAfterRange,
+    };
   }
 
-  /**
-   * Проверяет, был ли у адреса положительный баланс в указанном временном диапазоне
-   * и не стал ли он нулевым до конца диапазона
-   */
-  private hasPositiveBalanceInRange(
-    balances: BalanceData[],
-    startTimeSeconds: number,
+  private hasAnyPositiveBalance(context: {
+    lastBeforeStart: {
+      balance: number;
+      timeSeconds: number;
+      inLedgerIndex: number;
+    } | null;
+    balancesInRange: Array<{
+      balance: number;
+      timeSeconds: number;
+      inLedgerIndex: number;
+    }>;
+    firstAfterRange: {
+      balance: number;
+      timeSeconds: number;
+      inLedgerIndex: number;
+    } | null;
+  }): boolean {
+    const balanceAtStart =
+      context.balancesInRange.length > 0
+        ? context.balancesInRange[0]
+        : context.lastBeforeStart;
+
+    const hadPositiveAtStart = balanceAtStart
+      ? balanceAtStart.balance > 0
+      : false;
+    const hasPositiveInRange = context.balancesInRange.some(
+      (b) => b.balance > 0,
+    );
+    const hadPositiveBeforeStart = context.lastBeforeStart
+      ? context.lastBeforeStart.balance > 0
+      : false;
+
+    return hadPositiveAtStart || hasPositiveInRange || hadPositiveBeforeStart;
+  }
+
+  private checkHolderStatus(
+    context: {
+      lastBeforeStart: {
+        balance: number;
+        timeSeconds: number;
+        inLedgerIndex: number;
+      } | null;
+      balancesInRange: Array<{
+        balance: number;
+        timeSeconds: number;
+        inLedgerIndex: number;
+      }>;
+      firstAfterRange: {
+        balance: number;
+        timeSeconds: number;
+        inLedgerIndex: number;
+      } | null;
+    },
     endTimeSeconds: number,
   ): boolean {
-    if (!balances || balances.length === 0) {
-      return false;
-    }
-
-    // Сортируем все балансы по времени
-    const sortedBalances = [...balances].sort((a, b) => {
-      const timeA = this.parseCloseTime(a.closeTime).toSeconds();
-      const timeB = this.parseCloseTime(b.closeTime).toSeconds();
-      if (timeA !== timeB) return timeA - timeB;
-      return a.inLedgerIndex - b.inLedgerIndex;
-    });
-
-    // Находим последний баланс до начала диапазона или в начале диапазона
-    let lastBalanceBeforeOrAtStart: BalanceData | null = null;
-    for (const balance of sortedBalances) {
-      const balanceTime = this.parseCloseTime(balance.closeTime).toSeconds();
-      if (balanceTime <= startTimeSeconds) {
-        lastBalanceBeforeOrAtStart = balance;
-      } else {
-        break;
-      }
-    }
-
-    // Находим все балансы в диапазоне
-    const balancesInRange: BalanceData[] = [];
-    for (const balance of sortedBalances) {
-      const balanceTime = this.parseCloseTime(balance.closeTime).toSeconds();
-      if (balanceTime >= startTimeSeconds && balanceTime <= endTimeSeconds) {
-        balancesInRange.push(balance);
-      }
-    }
-
-    // Находим первый баланс после диапазона
-    let firstBalanceAfterRange: BalanceData | null = null;
-    for (const balance of sortedBalances) {
-      const balanceTime = this.parseCloseTime(balance.closeTime).toSeconds();
-      if (balanceTime > endTimeSeconds) {
-        firstBalanceAfterRange = balance;
-        break;
-      }
-    }
-
-    // Определяем баланс в начале диапазона
-    const balanceAtStart =
-      balancesInRange.length > 0
-        ? balancesInRange[0]
-        : lastBalanceBeforeOrAtStart;
-
-    // Определяем баланс в конце диапазона
     const balanceAtEnd =
-      balancesInRange.length > 0
-        ? balancesInRange[balancesInRange.length - 1]
-        : lastBalanceBeforeOrAtStart;
+      context.balancesInRange.length > 0
+        ? context.balancesInRange[context.balancesInRange.length - 1]
+        : context.lastBeforeStart;
 
-    // Проверяем, был ли положительный баланс в начале диапазона
-    const hadPositiveBalanceAtStart =
-      balanceAtStart && balanceAtStart.balance > 0;
+    if (balanceAtEnd && balanceAtEnd.balance === 0) {
+      return this.hasAnyPositiveBalance(context);
+    }
 
-    // Проверяем, был ли хотя бы один положительный баланс в диапазоне
-    const hasPositiveInRange = balancesInRange.some((b) => b.balance > 0);
-
-    // Проверяем, был ли положительный баланс до начала диапазона
-    const hadPositiveBalanceBeforeStart =
-      lastBalanceBeforeOrAtStart && lastBalanceBeforeOrAtStart.balance > 0;
-
-    // Если не было положительного баланса ни в начале, ни в диапазоне, ни до начала
     if (
-      !hadPositiveBalanceAtStart &&
-      !hasPositiveInRange &&
-      !hadPositiveBalanceBeforeStart
+      context.firstAfterRange &&
+      context.firstAfterRange.balance === 0 &&
+      context.firstAfterRange.timeSeconds - endTimeSeconds < 300
     ) {
       return false;
     }
 
-    if (balanceAtEnd && balanceAtEnd.balance === 0) {
-      // Если был положительный баланс в начале диапазона или до начала, то адрес был холдером
-      if (
-        hadPositiveBalanceAtStart ||
-        hadPositiveBalanceBeforeStart ||
-        hasPositiveInRange
-      ) {
-        return true;
-      } else {
-        return false;
-      }
-    }
-
-    // Если есть баланс сразу после диапазона и он нулевой,
-    // то адрес перестал быть холдером до конца диапазона
-    if (firstBalanceAfterRange && firstBalanceAfterRange.balance === 0) {
-      const firstBalanceTime = this.parseCloseTime(
-        firstBalanceAfterRange.closeTime,
-      ).toSeconds();
-      // Если баланс стал нулевым сразу после диапазона (в пределах небольшого окна),
-      // считаем что он перестал быть холдером до конца диапазона
-      if (firstBalanceTime - endTimeSeconds < 300) {
-        return false;
-      }
-    }
     return true;
   }
 }

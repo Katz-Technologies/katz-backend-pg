@@ -17,25 +17,25 @@ export enum OHLCPeriod {
 
 export class GetOhlcDto {
   @IsString()
-  assetCurrency: string;
+  assetCurrency!: string;
 
   @IsString()
   @IsOptional()
   assetIssuer?: string;
 
   @IsString()
-  asset2Currency: string;
+  asset2Currency!: string;
 
   @IsString()
   @IsOptional()
   asset2Issuer?: string;
 
   @IsEnum(OHLCPeriod)
-  period: OHLCPeriod;
+  period!: OHLCPeriod;
 
   @IsNumber()
-  from: number;
+  from!: number;
 
   @IsNumber()
-  to: number;
+  to!: number;
 }

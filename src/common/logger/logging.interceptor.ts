@@ -13,7 +13,7 @@ import { tap, catchError } from 'rxjs/operators';
 export class LoggingInterceptor implements NestInterceptor {
   private readonly logger = new Logger(LoggingInterceptor.name);
 
-  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
+  intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const requestDetails = this.getRequestDetails(context);
     const requestLog = { req: this.truncateRequestData(requestDetails) };
 
@@ -39,8 +39,8 @@ export class LoggingInterceptor implements NestInterceptor {
   }
 
   private truncateRequestData(
-    requestData: Record<string, any>,
-  ): Record<string, any> {
+    requestData: Record<string, unknown>,
+  ): Record<string, unknown> {
     const truncated = { ...requestData };
     const maxLength = 500;
 
@@ -54,7 +54,7 @@ export class LoggingInterceptor implements NestInterceptor {
     return truncated;
   }
 
-  private truncateResponseData(data: any): any {
+  private truncateResponseData(data: unknown): unknown {
     const maxLength = 500;
 
     if (data === null || data === undefined) {
@@ -76,7 +76,9 @@ export class LoggingInterceptor implements NestInterceptor {
     return data;
   }
 
-  private getRequestDetails(context: ExecutionContext): Record<string, any> {
+  private getRequestDetails(
+    context: ExecutionContext,
+  ): Record<string, unknown> {
     if (context.getType() === 'ws') {
       const wsContext = context.switchToWs();
       return {

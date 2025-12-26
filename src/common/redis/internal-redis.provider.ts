@@ -8,7 +8,8 @@ export const internalRedisProvider: Provider = {
     const client = new Redis({
       host: process.env.INTERNAL_REDIS_HOST || 'localhost',
       port: Number(process.env.INTERNAL_REDIS_PORT) || 6379,
-      retryStrategy: (times) => {
+      password: process.env.INTERNAL_REDIS_PASSWORD,
+      retryStrategy: (times): number => {
         const delay = Math.min(times * 50, 2000);
         return delay;
       },
@@ -22,25 +23,31 @@ export const internalRedisProvider: Provider = {
     });
 
     client.on('error', (error: Error | AggregateError) => {
-      if (error instanceof AggregateError || (error as any).errors) {
+      if (error instanceof AggregateError || 'errors' in error) {
         const errors = (error as AggregateError).errors || [];
-        const isConnectionError = errors.some(
-          (e: any) =>
-            e?.code === 'ECONNREFUSED' ||
-            e?.code === 'ENOTFOUND' ||
-            e?.message?.includes('ECONNREFUSED') ||
-            e?.message?.includes('ENOTFOUND'),
-        );
+        const isConnectionError = errors.some((e: unknown) => {
+          if (e && typeof e === 'object') {
+            const err = e as { code?: string; message?: string };
+            return (
+              err.code === 'ECONNREFUSED' ||
+              err.code === 'ENOTFOUND' ||
+              err.message?.includes('ECONNREFUSED') ||
+              err.message?.includes('ENOTFOUND')
+            );
+          }
+          return false;
+        });
         if (isConnectionError) {
           return;
         }
       }
 
+      const errorObj = error as { code?: string };
       if (
         error.message?.includes('ECONNREFUSED') ||
         error.message?.includes('ENOTFOUND') ||
-        (error as any).code === 'ECONNREFUSED' ||
-        (error as any).code === 'ENOTFOUND'
+        errorObj.code === 'ECONNREFUSED' ||
+        errorObj.code === 'ENOTFOUND'
       ) {
         return;
       }

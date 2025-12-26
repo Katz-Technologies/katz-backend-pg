@@ -8,7 +8,7 @@ import {
   ArrayMinSize,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
-import { ETokensSort } from 'src/service/xrpl-meta/enum/tokens-sort.enum';
+import { ETokensSort } from 'src/integrations/xrpl-meta/enum/tokens-sort.enum';
 
 export class GetTokensDto {
   @IsString()

@@ -6,21 +6,21 @@ import { IAppConfig, IClickhouseConfig } from '../config/config.interface';
 import type { RedisService } from '../redis/redis.service';
 import { Inject } from '@nestjs/common';
 import { REDIS_TOKENS } from '../redis/redis.tokens';
-import { AccountFlowCount } from 'src/service/smart_money/interface/account-flow-count.interface';
-import { MoneyFlowRow } from 'src/service/smart_money/interface/money-flow-row.interface';
-import { RedisExportData } from 'src/service/smart_money/interface/redis-export-data.interface';
-import { XrpPriceData } from 'src/service/smart_money/interface/xrp-price-data.interface';
-import { SmartMoneySummary } from 'src/service/smart_money/type/smart-money-summary.type';
-import { TokensSummary } from 'src/service/smart_money/type/tokens-summary.type';
-import { ETag } from 'src/service/smart_money/enum/tag.type';
-import { ExcludedTags } from 'src/service/smart_money/const/excluded-tags.const';
-import { RequiredTags } from 'src/service/smart_money/const/required-tags.const';
-import { TokenVolumeCharts } from 'src/service/smart_money/type/token-summary.type';
+import { AccountFlowCount } from 'src/services/smart-money/interface/account-flow-count.interface';
+import { MoneyFlowRow } from 'src/services/smart-money/interface/money-flow-row.interface';
+import { RedisExportData } from 'src/services/smart-money/interface/redis-export-data.interface';
+import { XrpPriceData } from 'src/services/smart-money/interface/xrp-price-data.interface';
+import { SmartMoneySummary } from 'src/services/smart-money/type/smart-money-summary.type';
+import { TokensSummary } from 'src/services/smart-money/type/tokens-summary.type';
+import { ETag } from 'src/services/smart-money/enum/tag.type';
+import { ExcludedTags } from 'src/services/smart-money/const/excluded-tags.const';
+import { RequiredTags } from 'src/services/smart-money/const/required-tags.const';
+import { TokenVolumeCharts } from 'src/services/smart-money/type/token-summary.type';
 import {
   TokenTradersCharts,
   TokenHoldersCharts,
 } from 'src/domain/chart/chart.domain';
-import { BalanceData } from 'src/service/smart_money/type/balance-data.type';
+import { BalanceData } from 'src/services/smart-money/type/balance-data.type';
 import { DateTime } from 'luxon';
 
 const TWO_HOURS = 2 * 60 * 60;
@@ -94,15 +94,18 @@ export class ClickhouseService {
     });
   }
 
-  async getAllTokens(): Promise<any> {
-    const result: any[] = await this.executeQuery(`
+  async getAllTokens(): Promise<string[]> {
+    interface TokenResult {
+      asset: string;
+    }
+    const result = await this.executeQuery<TokenResult[]>(`
     SELECT DISTINCT asset
       FROM (
       SELECT concat(from_currency, '.', from_issuer_address) AS asset FROM xrpl.money_flow
       UNION ALL
       SELECT concat(to_currency, '.', to_issuer_address) AS asset FROM xrpl.money_flow
     )`);
-    return result.map((item: any) => item.asset);
+    return result.map((item) => item.asset);
   }
 
   async insertXrpPrices(prices: XrpPriceData[]): Promise<void> {
@@ -337,88 +340,105 @@ export class ClickhouseService {
     }
   }
 
-  async setBalancesToRedis(
-    smartMoneySummaries: SmartMoneySummary[],
-  ): Promise<void> {
-    const CHUNK_SIZE = 500;
-    const TOP_SIZE = 100;
-    let topAddedCount = 0;
-    const balanceKeysSet = new Set<string>();
-
-    for (let i = 0; i < smartMoneySummaries.length; i += CHUNK_SIZE) {
-      const chunk = smartMoneySummaries.slice(i, i + CHUNK_SIZE);
-      const pipeline = this.redisService.pipelineWithJson();
-
-      for (
-        let sortedResultIndex = 0;
-        sortedResultIndex < chunk.length;
-        sortedResultIndex++
-      ) {
-        const sortedResult = chunk[sortedResultIndex];
-        const reversedSales = [...(sortedResult?.sales ?? [])].reverse();
-
-        const hasAllRequired = RequiredTags.every((tag: ETag) =>
-          sortedResult?.tags.includes(tag),
-        );
-        const hasExcluded = ExcludedTags.some((tag: ETag) =>
-          sortedResult?.tags.includes(tag),
-        );
-
-        const limitedResult = {
-          ...(sortedResult ?? {}),
-          sales: reversedSales.slice(0, 100),
-          tags: sortedResult?.tags ?? [],
-        };
-
-        if (topAddedCount < TOP_SIZE && hasAllRequired && !hasExcluded) {
-          topAddedCount++;
-          const summaryKey = `top:${topAddedCount}`;
-          pipeline.setAsJsonEx(summaryKey, limitedResult, 2 * 60 * 60);
-        }
-
-        const userSummaryKey = `summary:${sortedResult?.address ?? ''}`;
-        const summaryData = { ...sortedResult, sales: undefined };
-
-        Object.entries(summaryData?.balances ?? {}).forEach(
-          ([assetId, balances]) => {
-            const balanceKey =
-              'balance:' + summaryData?.address + ':' + assetId;
-            balanceKeysSet.add(balanceKey);
-
-            // Преобразуем DateTime в строку для сериализации в Redis
-            // Формат: yyyy-MM-dd HH:mm:ss.SSS (как в ClickHouse)
-            const serializedBalances = balances.map((b) => ({
-              balance: b.balance,
-              closeTime:
-                b.closeTime instanceof DateTime
-                  ? b.closeTime.toFormat('yyyy-MM-dd HH:mm:ss.SSS')
-                  : b.closeTime,
-              inLedgerIndex: b.inLedgerIndex,
-            }));
-
-            pipeline.setAsJsonEx(balanceKey, serializedBalances, 2 * 60 * 60);
-          },
-        );
-
-        pipeline.setAsJsonEx(
-          userSummaryKey + ':sale:length',
-          reversedSales.length,
-          2 * 60 * 60,
-        );
-
-        for (let index = 0; index < reversedSales.length; index++) {
-          const saleIndex = index + 1;
-          pipeline.setAsJsonEx(
-            userSummaryKey + ':sale:' + saleIndex,
-            reversedSales[index],
-            2 * 60 * 60,
-          );
-        }
-      }
-
-      await pipeline.exec();
+  private shouldAddToTop(
+    sortedResult: SmartMoneySummary | undefined,
+    topAddedCount: number,
+    topSize: number,
+  ): boolean {
+    if (!sortedResult || topAddedCount >= topSize) {
+      return false;
     }
 
+    const hasAllRequired = RequiredTags.every((tag: ETag) =>
+      sortedResult.tags.includes(tag),
+    );
+    const hasExcluded = ExcludedTags.some((tag: ETag) =>
+      sortedResult.tags.includes(tag),
+    );
+
+    return hasAllRequired && !hasExcluded;
+  }
+
+  private processSummaryBalances(
+    summaryData: SmartMoneySummary,
+    pipeline: ReturnType<typeof this.redisService.pipelineWithJson>,
+    balanceKeysSet: Set<string>,
+  ): void {
+    Object.entries(summaryData.balances ?? {}).forEach(
+      ([assetId, balances]) => {
+        const balanceKey = 'balance:' + summaryData.address + ':' + assetId;
+        balanceKeysSet.add(balanceKey);
+
+        // Преобразуем DateTime в строку для сериализации в Redis
+        // Формат: yyyy-MM-dd HH:mm:ss.SSS (как в ClickHouse)
+        const serializedBalances = balances.map((b) => ({
+          balance: b.balance,
+          closeTime:
+            b.closeTime instanceof DateTime
+              ? b.closeTime.toFormat('yyyy-MM-dd HH:mm:ss.SSS')
+              : b.closeTime,
+          inLedgerIndex: b.inLedgerIndex,
+        }));
+
+        pipeline.setAsJsonEx(balanceKey, serializedBalances, 2 * 60 * 60);
+      },
+    );
+  }
+
+  private processSummarySales(
+    userSummaryKey: string,
+    reversedSales: unknown[],
+    pipeline: ReturnType<typeof this.redisService.pipelineWithJson>,
+  ): void {
+    pipeline.setAsJsonEx(
+      userSummaryKey + ':sale:length',
+      reversedSales.length,
+      2 * 60 * 60,
+    );
+
+    for (let index = 0; index < reversedSales.length; index++) {
+      const saleIndex = index + 1;
+      pipeline.setAsJsonEx(
+        userSummaryKey + ':sale:' + saleIndex,
+        reversedSales[index],
+        2 * 60 * 60,
+      );
+    }
+  }
+
+  private processChunk(
+    chunk: SmartMoneySummary[],
+    pipeline: ReturnType<typeof this.redisService.pipelineWithJson>,
+    balanceKeysSet: Set<string>,
+    topAddedCount: { value: number },
+    topSize: number,
+  ): void {
+    for (const sortedResult of chunk) {
+      const reversedSales = [...(sortedResult?.sales ?? [])].reverse();
+
+      const limitedResult = {
+        ...(sortedResult ?? {}),
+        sales: reversedSales.slice(0, 100),
+        tags: sortedResult?.tags ?? [],
+      };
+
+      if (this.shouldAddToTop(sortedResult, topAddedCount.value, topSize)) {
+        topAddedCount.value++;
+        const summaryKey = `top:${topAddedCount.value}`;
+        pipeline.setAsJsonEx(summaryKey, limitedResult, 2 * 60 * 60);
+      }
+
+      const userSummaryKey = `summary:${sortedResult?.address ?? ''}`;
+
+      if (sortedResult) {
+        this.processSummaryBalances(sortedResult, pipeline, balanceKeysSet);
+      }
+
+      this.processSummarySales(userSummaryKey, reversedSales, pipeline);
+    }
+  }
+
+  private async updateBalanceKeys(balanceKeysSet: Set<string>): Promise<void> {
     let existingKeys: string[] = [];
     try {
       const keysFromRedis =
@@ -444,8 +464,34 @@ export class ClickhouseService {
     );
   }
 
-  async getNewTokens(): Promise<any[]> {
-    return this.executeQuery(`
+  async setBalancesToRedis(
+    smartMoneySummaries: SmartMoneySummary[],
+  ): Promise<void> {
+    const CHUNK_SIZE = 500;
+    const TOP_SIZE = 100;
+    const topAddedCount = { value: 0 };
+    const balanceKeysSet = new Set<string>();
+
+    for (let i = 0; i < smartMoneySummaries.length; i += CHUNK_SIZE) {
+      const chunk = smartMoneySummaries.slice(i, i + CHUNK_SIZE);
+      const pipeline = this.redisService.pipelineWithJson();
+
+      this.processChunk(
+        chunk,
+        pipeline,
+        balanceKeysSet,
+        topAddedCount,
+        TOP_SIZE,
+      );
+
+      await pipeline.exec();
+    }
+
+    await this.updateBalanceKeys(balanceKeysSet);
+  }
+
+  async getNewTokens(): Promise<Record<string, unknown>[]> {
+    return this.executeQuery<Record<string, unknown>[]>(`
       select * from new_tokens
         order by first_seen_ledger_index desc,
         first_seen_in_ledger_index desc
@@ -474,7 +520,9 @@ export class ClickhouseService {
 
     const topTokens = sortedTokens.slice(0, 100);
     for (let i = 0; i < topTokens.length; i++) {
-      const [tokenAsset, tokenSummary] = topTokens[i];
+      const entry = topTokens[i];
+      if (!entry) continue;
+      const [tokenAsset, tokenSummary] = entry;
       const topTokenKey = `top-token:${i + 1}`;
       pipeline.setAsJsonEx(
         topTokenKey,
@@ -500,7 +548,9 @@ export class ClickhouseService {
 
     const topTokensLastDay = sortedTokensLastDay.slice(0, 100);
     for (let i = 0; i < topTokensLastDay.length; i++) {
-      const [tokenAsset, tokenSummary] = topTokensLastDay[i];
+      const entry = topTokensLastDay[i];
+      if (!entry) continue;
+      const [tokenAsset, tokenSummary] = entry;
       const topTokenKey = `top-token-last-day:${i + 1}`;
       pipeline.setAsJsonEx(
         topTokenKey,
@@ -638,28 +688,41 @@ export class ClickhouseService {
           const address = parts[1];
           const assetId = parts.slice(2).join(':'); // На случай, если assetId содержит ':'
 
-          const balancesRaw = await this.redisService.getAsJson<any[]>(key);
+          if (!address || !assetId) return;
 
-          if (!balancesRaw || balancesRaw.length === 0) return;
+          const balancesRaw = await this.redisService.getAsJson<unknown[]>(key);
+
+          if (
+            !balancesRaw ||
+            !Array.isArray(balancesRaw) ||
+            balancesRaw.length === 0
+          )
+            return;
 
           // Нормализуем балансы: преобразуем closeTime из строки в DateTime
           const balances: BalanceData[] = balancesRaw
-            .map((b) => {
-              const closeTime = this.parseCloseTime(b.closeTime);
+            .map((b: unknown) => {
+              if (!b || typeof b !== 'object') return null;
+              const balanceObj = b as {
+                closeTime: string | Date | DateTime;
+                balance: unknown;
+                inLedgerIndex: unknown;
+              };
+              const closeTime = this.parseCloseTime(balanceObj.closeTime);
 
               // Проверяем валидность
               if (!closeTime.isValid) {
                 this.logger.warn(
                   `Invalid closeTime in balance from Redis key ${key}:`,
-                  b.closeTime,
+                  balanceObj.closeTime,
                 );
                 return null;
               }
 
               return {
-                balance: b.balance,
+                balance: balanceObj.balance,
                 closeTime,
-                inLedgerIndex: b.inLedgerIndex,
+                inLedgerIndex: balanceObj.inLedgerIndex,
               };
             })
             .filter((b): b is BalanceData => b !== null);
@@ -669,9 +732,10 @@ export class ClickhouseService {
           }
 
           // Объединяем с существующими балансами, если они есть
-          if (tokenBalances[assetId][address]) {
+          const existingBalances = tokenBalances[assetId][address];
+          if (existingBalances) {
             tokenBalances[assetId][address] = [
-              ...tokenBalances[assetId][address],
+              ...existingBalances,
               ...balances,
             ];
           } else {

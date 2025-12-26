@@ -5,25 +5,25 @@ import { EErrorCode } from '../enums/error-code.enum';
 
 export class WsExceptionDto {
   @ApiProperty({ example: '2024-03-18T12:00:00.000Z' })
-  timestamp: Date;
+  timestamp!: Date;
 
   @ApiProperty({ example: 'example_event_name' })
   @IsString()
   @IsNotEmpty()
-  event: string;
+  event!: string;
 
   @ApiProperty({ example: EErrorCode.Validate })
-  code: EErrorCode;
+  code!: EErrorCode;
 
   @ApiProperty({ example: 'Invalid input provided' })
-  message: string;
+  message!: string;
 
   @ApiProperty({ example: 'Invalid input provided' })
-  messageUI: string;
+  messageUI!: string;
 
   @ApiProperty({ example: 'Detailed error message for debugging' })
-  messageDebug: string;
+  messageDebug!: string;
 
   @ApiProperty({ example: { key: 'value' } })
-  data: any;
+  data!: unknown;
 }
