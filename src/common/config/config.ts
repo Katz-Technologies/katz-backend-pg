@@ -46,6 +46,7 @@ export const Config = (): IAppConfig => {
     localRedis: {
       host: getEnvString('INTERNAL_REDIS_HOST', 'localhost'),
       port: getEnvNumber('INTERNAL_REDIS_PORT', 6379),
+      password: process.env.INTERNAL_REDIS_PASSWORD,
       keys: getRedisKeys(),
     },
 
