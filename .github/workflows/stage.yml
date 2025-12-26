@@ -75,6 +75,31 @@ jobs:
     if: github.event_name != 'pull_request'
     needs: [check-dev-status]
 
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linter
+        run: npm run lint
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Run tests
+        run: npm test -- --watchAll=false
+
+      - name: Build application
+        run: npm run build
+
   test-only:
     name: stage - test and deploy
     runs-on: ubuntu-latest
@@ -105,114 +130,4 @@ jobs:
 
       - name: Build application
         run: npm run build
-
-      - name: Build application
-        run: npm run build
-
-      - name: Deploy to server via SSH
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT || 22 }}
-          script: |
-            set -e
-            
-            DEPLOY_PATH="${{ secrets.DEPLOY_PATH || '/home/ubuntu/katz-backend' }}"
-            GIT_REPO="${{ secrets.GIT_REPO || github.repository }}"
-            GIT_BRANCH="stage"
-            
-            # Определяем URL репозитория
-            if [ -n "${{ secrets.GIT_TOKEN }}" ]; then
-              GIT_URL="https://${{ secrets.GIT_TOKEN }}@github.com/$GIT_REPO.git"
-            else
-              GIT_URL="git@github.com:$GIT_REPO.git"
-            fi
-            
-            # Создаем директорию, если не существует
-            mkdir -p "$DEPLOY_PATH"
-            cd "$DEPLOY_PATH"
-            
-            # Клонируем или обновляем репозиторий
-            if [ -d ".git" ]; then
-              echo "Обновляем репозиторий..."
-              CURRENT_URL=$(git remote get-url origin 2>/dev/null || echo "")
-              if [ "$CURRENT_URL" != "$GIT_URL" ]; then
-                echo "Обновляем remote URL..."
-                git remote set-url origin "$GIT_URL"
-              fi
-              git fetch origin
-              git reset --hard origin/$GIT_BRANCH
-              git clean -fd
-            else
-              echo "Клонируем репозиторий..."
-              git clone -b $GIT_BRANCH $GIT_URL .
-            fi
-            
-            # Проверяем наличие .env файла
-            if [ ! -f ".env" ]; then
-              echo "ВНИМАНИЕ: Файл .env не найден! Создайте его вручную."
-              exit 1
-            fi
-            
-            # Останавливаем старые контейнеры
-            echo "Останавливаем старые контейнеры..."
-            docker compose down || true
-            
-            # Собираем и запускаем новые контейнеры
-            echo "Собираем и запускаем контейнеры..."
-            docker compose up -d --build
-            
-            # Показываем статус
-            echo "Статус контейнеров:"
-            docker compose ps
-            
-            # Очищаем неиспользуемые образы
-            echo "Очищаем неиспользуемые образы..."
-            docker image prune -f || true
-
-      - name: Wait for services to be ready
-        run: |
-          echo "Waiting for services to start..."
-          sleep 10
-
-      - name: Smoke tests
-        run: |
-          echo "Running smoke tests..."
-          STAGING_URL="${{ secrets.STAGING_URL || 'http://localhost:3000' }}"
-          
-          # Check health endpoint
-          echo "Checking health endpoint..."
-          for i in {1..30}; do
-            if curl -f -s "${STAGING_URL}/api/health" > /dev/null 2>&1; then
-              echo "✅ Health check passed"
-              break
-            fi
-            if [ $i -eq 30 ]; then
-              echo "❌ Health check failed after 30 attempts"
-              exit 1
-            fi
-            echo "Attempt $i/30 failed, retrying in 5 seconds..."
-            sleep 5
-          done
-          
-          # Verify health response structure
-          HEALTH_RESPONSE=$(curl -s "${STAGING_URL}/api/health")
-          if echo "$HEALTH_RESPONSE" | grep -q '"status"'; then
-            echo "✅ Health endpoint returns valid JSON"
-          else
-            echo "❌ Health endpoint response is invalid"
-            echo "Response: $HEALTH_RESPONSE"
-            exit 1
-          fi
-          
-          # Check if status is ok or degraded (down is not acceptable)
-          STATUS=$(echo "$HEALTH_RESPONSE" | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
-          if [ "$STATUS" = "ok" ] || [ "$STATUS" = "degraded" ]; then
-            echo "✅ Service status: $STATUS"
-          else
-            echo "❌ Service status is down: $STATUS"
-            exit 1
-          fi
 
